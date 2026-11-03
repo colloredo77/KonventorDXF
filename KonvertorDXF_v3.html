@@ -1,0 +1,1953 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KonvertorDXF 2 – výkres do DXF pro laser (TruPunch / TruFiber)</title>
+<style>
+:root{
+  --ink:#1b2530; --muted:#5b6875; --paper:#eceee9; --card:#f7f8f4; --line:#cbd1c8;
+  --acc:#006d8f; --acc-d:#00506a; --pierce:#c2185b; --warn:#9a5200; --ok:#17744a; --bad:#b3261e;
+  --canvas:#262e35;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font:13px/1.4 "Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;color:var(--ink);background:var(--paper);display:flex;flex-direction:column;overflow:hidden}
+.num,.mono{font-family:"Cascadia Mono",Consolas,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+header{height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--ink);color:#e9eef2}
+header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px}
+header h1 small{font-weight:400;opacity:.65;margin-left:8px;font-size:12px}
+header .sp{flex:1}
+#fname{opacity:.8;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pager{display:none;align-items:center;gap:6px}
+.pager.on{display:flex}
+button{font:inherit;cursor:pointer}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:6px;padding:6px 10px}
+.btn:hover{border-color:var(--acc)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600}
+.btn.pri:hover{background:var(--acc-d)}
+.btn.sm{padding:3px 8px;font-size:12px}
+header .btn{background:transparent;color:#e9eef2;border-color:#4a5864}
+header .btn.pri{background:#18a0c9;border-color:#18a0c9;color:#04222c}
+.ws{flex:1;display:flex;min-height:0}
+aside{width:384px;flex:none;background:var(--paper);border-right:1px solid var(--line);overflow-y:auto;padding:10px 12px 16px}
+section.st{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+section.st h2{font-size:13px;margin:0 0 8px;display:flex;align-items:baseline;gap:8px}
+section.st h2 i{font-style:normal;font-family:"Cascadia Mono",Consolas,monospace;color:var(--acc);font-weight:700}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:5px 0}
+.row label{flex:1}
+.row input[type=number],.row select{width:96px;padding:3px 5px;border:1px solid var(--line);border-radius:5px;background:#fff;font:inherit}
+.row input[type=range]{width:150px}
+.row select{width:150px}
+#selFmt{width:200px}
+.hint{color:var(--muted);font-size:12px;margin:4px 0 0}
+.modes{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.modes button{padding:7px 6px;border:1px solid var(--line);background:#fff;border-radius:6px;text-align:left}
+.modes button.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc);background:#e6f3f7;font-weight:600}
+.modes button.wide{grid-column:1 / span 2}
+.tech{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.tech button{padding:8px;border:1px solid var(--line);background:#fff;border-radius:6px;text-align:left}
+.tech button b{display:block;font-size:14px}
+.tech button span{font-size:11.5px;color:var(--muted)}
+.tech button.on{border-color:var(--acc);box-shadow:inset 0 0 0 1.5px var(--acc);background:#e6f3f7}
+#drop{border:1.5px dashed #9aa6a0;border-radius:8px;padding:14px;text-align:center;cursor:pointer;background:#fff}
+#drop.over,#drop:hover{border-color:var(--acc);background:#e6f3f7}
+.stats{display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+.stats div:nth-child(odd){color:var(--muted)}
+.stats div:nth-child(even){text-align:right}
+.size{font-size:20px;font-weight:600;margin:2px 0 6px}
+.badge{display:inline-block;border-radius:4px;padding:1px 6px;font-size:11px;font-weight:600}
+.badge.warn{background:#fbe9d0;color:var(--warn)}
+.badge.ok{background:#d9f0e3;color:var(--ok)}
+.warnbox{margin-top:8px;padding:7px 9px;border-radius:6px;background:#fbe9d0;color:#6d3b00;font-size:12px}
+.warnbox.bad{background:#f8dad7;color:#7a1a14}
+.infobox{margin-top:6px;padding:6px 9px;border-radius:6px;background:#e6f3f7;color:#0b3b4b;font-size:12px}
+.hidden{display:none !important}
+main{flex:1;position:relative;background:var(--canvas);min-width:0;overflow:hidden}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+.hud{position:absolute;background:rgba(247,248,244,.96);border:1px solid var(--line);border-radius:8px;padding:6px 8px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+#zoombar{top:12px;left:12px;display:flex;gap:4px;align-items:center}
+#status{top:12px;right:12px;max-width:55%}
+#under{bottom:12px;left:12px;display:flex;align-items:center;gap:8px}
+#under input{width:110px}
+#mpanel{bottom:12px;left:50%;transform:translateX(-50%);display:none;min-width:350px}
+#mpanel.on{display:block}
+#empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#b8c4cc;text-align:center;pointer-events:none;padding:30px}
+#empty b{font-size:16px;color:#e6edf1}
+#empty p{max-width:460px;margin:6px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>KonvertorDXF 2<small>PDF a JPG/PNG výkres → DXF pro 2D laser</small></h1>
+  <span id="fname" class="mono">žádný soubor</span>
+  <div class="pager" id="pager">
+    <button class="btn sm" id="pgPrev">‹</button>
+    <span class="mono">strana <span id="pgCur">1</span>/<span id="pgTot">1</span></span>
+    <button class="btn sm" id="pgNext">›</button>
+  </div>
+  <span class="sp"></span>
+  <button class="btn pri" id="btnExportTop" disabled>Stáhnout DXF</button>
+</header>
+
+<div class="ws">
+<aside>
+  <section class="st">
+    <h2><i>1</i>Výkres</h2>
+    <div id="drop">
+      <input type="file" id="file" accept=".pdf,application/pdf,.jpg,.jpeg,.png,.bmp,.webp,image/*" hidden>
+      <b>Přetáhněte soubor sem</b><br><span class="hint">PDF (vektorové i sken), JPG, PNG</span>
+    </div>
+    <p class="hint" id="kindInfo"></p>
+  </section>
+
+  <section class="st">
+    <h2><i>2</i>Dílec</h2>
+    <div class="modes">
+      <button data-mode="pan" class="on">Posun</button>
+      <button data-mode="select">Výřez dílce</button>
+      <button data-mode="erase">Mazat čáry</button>
+      <button data-mode="measure">Měřit dvě místa</button>
+      <button data-mode="circle" class="wide">Kalibrovat podle kruhového otvoru / oblouku</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn sm" id="btnUndo" disabled>Vrátit smazání</button>
+      <button class="btn sm" id="btnClrCrop" disabled>Zrušit výřez</button>
+      <button class="btn sm" id="btnRestore" disabled>Obnovit vše</button>
+    </div>
+    <p class="hint" id="modeHint"></p>
+  </section>
+
+  <section class="st">
+    <h2><i>3</i>Měřítko</h2>
+    <div class="row" id="rowRatio"><span>Výkres je v měřítku 1 :</span><input type="number" id="ratio" step="any" min="0.0001" value="1" class="num"></div>
+    <div class="row"><span id="scaleInfo" class="mono">–</span><span id="calBadge" class="badge warn">nekalibrováno</span></div>
+    <div class="row"><button class="btn sm" id="btnAuto" disabled>Automaticky podle kót</button><span class="hint" id="autoNote" style="margin:0"></span></div>
+    <div id="autoBox" class="infobox hidden"></div>
+    <div class="row"><label for="chkSnap">Přichytit rozměry na hodnoty kót (střed tolerance)</label><input type="checkbox" id="chkSnap" class="opt" checked></div>
+    <div id="snapBox" class="infobox hidden"></div>
+    <p class="hint">Ručně: „Měřit dvě místa“ (klik na dva body, zadání kóty) nebo „Kalibrovat podle kruhového otvoru“ (klik na kružnici, zadání průměru).</p>
+  </section>
+
+  <section class="st hidden" id="secRaster">
+    <h2><i>4</i>Rastr (JPG / sken)</h2>
+    <div class="row"><label for="rThr">Práh černé (0 = automaticky)</label><input type="range" id="rThr" min="0" max="250" value="0" class="rp"></div>
+    <div class="row"><label for="rInvert">Světlé čáry na tmavém podkladu</label><input type="checkbox" id="rInvert" class="rp"></div>
+    <div class="row"><label for="rLocal">Nerovné osvětlení (lokální práh)</label><input type="checkbox" id="rLocal" class="rp"></div>
+    <div class="row"><label for="rComp">Ignorovat drobky menší než (px)</label><input type="number" id="rComp" class="rp num" value="12" min="0" step="1"></div>
+    <div class="row"><label for="rTol">Tolerance proložení čar (px)</label><input type="number" id="rTol" class="rp num" value="1.6" min="0.5" step="0.1"></div>
+    <div class="row"><label for="rOrtho">Vodorovné a svislé čáry srovnat</label><input type="checkbox" id="rOrtho" class="rp" checked></div>
+    <div class="row"><button class="btn sm" id="btnRaster">Vektorizovat znovu</button><span class="hint mono" id="rInfo" style="margin:0"></span></div>
+    <p class="hint">Nejlépe nejdřív vybrat „Výřez dílce“, zpracuje se jen vybraná oblast.</p>
+  </section>
+
+  <section class="st">
+    <h2><i>5</i>Čištění</h2>
+    <div class="row" id="rowFilled"><label for="chkFilled">Ignorovat vyplněné tvary (šipky kót)</label><input type="checkbox" id="chkFilled" class="opt" checked></div>
+    <div class="row"><label for="selDash">Čárkované čáry (ohyby, osy)</label>
+      <select id="selDash" class="opt"><option value="skip">vynechat</option><option value="bend">vrstva OHYB</option><option value="cut">brát jako obrys</option></select></div>
+    <div class="row"><label for="numMin">Zahodit čáry kratší než (mm)</label><input type="number" id="numMin" class="opt num" value="0" min="0" step="0.1"></div>
+    <div class="row" id="rowJoinMm"><label for="numJoin">Tolerance spojení koncových bodů (mm)</label><input type="number" id="numJoin" class="opt num" value="0.05" min="0.001" step="0.01"></div>
+    <div class="row hidden" id="rowJoinPx"><label for="numJoinPx">Tolerance spojení koncových bodů (px)</label><input type="number" id="numJoinPx" class="opt num" value="3" min="0.5" step="0.5"></div>
+    <div class="row"><label for="chkCrossRm">Čáry křížku nevkládat do obrysu</label><input type="checkbox" id="chkCrossRm" class="opt" checked></div>
+    <div class="row"><label for="numCrossMax">Nejdelší rameno křížku (mm)</label><input type="number" id="numCrossMax" class="opt num" value="25" min="1" step="1"></div>
+  </section>
+
+  <section class="st">
+    <h2><i>6</i>Technologie</h2>
+    <div class="tech">
+      <button id="techPunch" class="on"><b>TruPunch</b><span>kruh ⌀ 0,1 mm do středu křížku</span></button>
+      <button id="techFiber"><b>TruFiber</b><span>laser bez kruhu ⌀ 0,1 mm</span></button>
+    </div>
+    <div id="punchOpts">
+      <div class="row"><label for="numPierce">Průměr kruhu (mm)</label><input type="number" id="numPierce" class="opt num" value="0.1" min="0.01" step="0.01"></div>
+      <div class="row"><label for="chkCenters">Kruh také do středu každé kružnice</label><input type="checkbox" id="chkCenters" class="opt"></div>
+    </div>
+    <p class="hint hidden" id="fiberNote">Kruh ⌀ 0,1 se do DXF nevkládá.</p>
+  </section>
+
+  <section class="st">
+    <h2><i>7</i>Výstup</h2>
+    <div class="row"><label for="selFmt">Zápis kontur</label>
+      <select id="selFmt" class="opt"><option value="lines">LINE / ARC / CIRCLE</option><option value="poly">spojené POLYLINE s oblouky</option></select></div>
+    <div class="row"><label for="chkOrigin">Počátek do levého dolního rohu dílce</label><input type="checkbox" id="chkOrigin" class="opt" checked></div>
+    <div class="size mono" id="sizeOut">– × – mm</div>
+    <div class="stats mono" id="statsOut"></div>
+    <div id="warnOut"></div>
+  </section>
+  <button class="btn pri" id="btnExport" style="width:100%;padding:10px" disabled>Stáhnout DXF</button>
+</aside>
+
+<main id="vp">
+  <canvas id="cv"></canvas>
+  <div class="hud" id="zoombar">
+    <button class="btn sm" id="zIn" title="Přiblížit">+</button>
+    <button class="btn sm" id="zOut" title="Oddálit">−</button>
+    <button class="btn sm" id="zFit" title="Celá strana">Celá strana</button>
+    <button class="btn sm" id="zCrop" title="Přiblížit na výřez" disabled>Na výřez</button>
+    <span class="mono" id="zlvl">100 %</span>
+  </div>
+  <div class="hud" id="status">Vložte výkres (PDF, JPG, PNG).</div>
+  <div class="hud" id="under"><label for="rngUnder">Podklad</label><input type="range" id="rngUnder" min="0" max="100" value="60"></div>
+  <div class="hud" id="mpanel">
+    <div id="mText" class="mono" style="margin-bottom:6px"></div>
+    <div class="row hidden" id="mKindRow"><label for="mKind">Zadáváte</label><select id="mKind"><option value="d">průměr ⌀</option><option value="r">poloměr R</option></select></div>
+    <div class="row"><label for="mReal" id="mRealLbl">Skutečná hodnota (mm)</label><input type="number" id="mReal" class="num" step="any" min="0" style="width:110px"></div>
+    <div class="row"><span class="hint" style="margin:0">Prázdné pole = jen měření.</span>
+      <span><button class="btn sm" id="mApply">Nastavit měřítko</button> <button class="btn sm" id="mClose">Zavřít</button></span></div>
+  </div>
+  <div id="empty"><b>Žádný výkres</b><p>Nahrajte vektorové PDF z CADu (čte se přímo geometrie, nejpřesnější), nebo obrázek / sken výkresu (JPG, PNG), ze kterého se čáry dohledají z pixelů.</p></div>
+</main>
+</div>
+
+<script>
+/*CORE-START*/
+'use strict';
+/* ===================== JÁDRO (bez DOM, testovatelné v Node) ===================== */
+const TAU = Math.PI * 2, hyp = Math.hypot;
+function norm2pi(a){ a %= TAU; if (a < 0) a += TAU; return a; }
+function angDiff(a, b){ let d = norm2pi(a - b); if (d > Math.PI) d -= TAU; return d; }
+function mulMat(m, c){ // CTM' = m × c  (řádkový zápis PDF)
+  return [m[0]*c[0]+m[1]*c[2], m[0]*c[1]+m[1]*c[3], m[2]*c[0]+m[3]*c[2], m[2]*c[1]+m[3]*c[3],
+          m[4]*c[0]+m[5]*c[2]+c[4], m[4]*c[1]+m[5]*c[3]+c[5]];
+}
+function ptOn(m, x, y){ return [m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5]]; }
+
+/* ---- 1) Cesty z operátorů pdf.js (formát 2.x/3.x i 4.x/5.x) ---- */
+function extractPaths(opList, OPS){
+  const fn = opList.fnArray, ar = opList.argsArray;
+  const strokeOps = new Set([OPS.stroke, OPS.closeStroke, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+  const fillOps   = new Set([OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+  const closeOps  = new Set([OPS.closeStroke, OPS.closeFillStroke, OPS.closeEOFillStroke]);
+  const paintOps  = new Set([OPS.stroke, OPS.closeStroke, OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke, OPS.endPath]);
+  let ctm = [1,0,0,1,0,0]; const stack = [];
+  let P = null; const out = [];
+  const T = (x, y) => ptOn(ctm, x, y);
+  const newP = () => ({subs:[], sub:null, cx:0, cy:0, sx:0, sy:0});
+  function mv(x, y){ const p = T(x, y); P.sub = {segs:[], closed:false}; P.subs.push(P.sub); P.cx = P.sx = p[0]; P.cy = P.sy = p[1]; }
+  function ln(x, y){ if (!P.sub){ mv(x, y); return; } const p = T(x, y); P.sub.segs.push({t:'L', x1:P.cx, y1:P.cy, x2:p[0], y2:p[1]}); P.cx = p[0]; P.cy = p[1]; }
+  function bz(a, b, c){ if (!P.sub) return; P.sub.segs.push({t:'B', p:[P.cx,P.cy,a[0],a[1],b[0],b[1],c[0],c[1]]}); P.cx = c[0]; P.cy = c[1]; }
+  function cv(x1,y1,x2,y2,x3,y3){ bz(T(x1,y1), T(x2,y2), T(x3,y3)); }
+  function cv2(x2,y2,x3,y3){ bz([P.cx,P.cy], T(x2,y2), T(x3,y3)); }
+  function cv3(x1,y1,x3,y3){ const c = T(x3,y3); bz(T(x1,y1), c, c); }
+  function quad(x1,y1,x2,y2){ const q = T(x1,y1), e = T(x2,y2);
+    bz([P.cx+2/3*(q[0]-P.cx), P.cy+2/3*(q[1]-P.cy)], [e[0]+2/3*(q[0]-e[0]), e[1]+2/3*(q[1]-e[1])], e); }
+  function cl(){ if (P.sub && !P.sub.closed){ if (hyp(P.cx-P.sx, P.cy-P.sy) > 1e-9) P.sub.segs.push({t:'L', x1:P.cx, y1:P.cy, x2:P.sx, y2:P.sy}); P.sub.closed = true; P.cx = P.sx; P.cy = P.sy; } }
+  function rect(x, y, w, h){ mv(x, y); ln(x+w, y); ln(x+w, y+h); ln(x, y+h); cl(); }
+  function paint(op){
+    if (P){
+      if (strokeOps.has(op)){ if (closeOps.has(op)) cl(); out.push({subs:P.subs, fill:fillOps.has(op)}); }
+      P = null;
+    }
+  }
+  for (let i = 0; i < fn.length; i++){
+    const f = fn[i], a = ar[i];
+    if (f === OPS.save) stack.push(ctm);
+    else if (f === OPS.restore){ if (stack.length) ctm = stack.pop(); }
+    else if (f === OPS.transform) ctm = mulMat(a, ctm);
+    else if (f === OPS.paintFormXObjectBegin){ stack.push(ctm); if (a && a[0]) ctm = mulMat(a[0], ctm); }
+    else if (f === OPS.paintFormXObjectEnd){ if (stack.length) ctm = stack.pop(); }
+    else if (f === OPS.constructPath){
+      if (!P) P = newP();
+      if (typeof a[0] === 'number'){            // pdf.js 4.x/5.x: [paintOp, [data], minMax]
+        const d = a[1][0]; let k = 0;
+        while (k < d.length){
+          const op = d[k++];
+          if (op === 0){ mv(d[k], d[k+1]); k += 2; }
+          else if (op === 1){ ln(d[k], d[k+1]); k += 2; }
+          else if (op === 2){ cv(d[k],d[k+1],d[k+2],d[k+3],d[k+4],d[k+5]); k += 6; }
+          else if (op === 3){ quad(d[k],d[k+1],d[k+2],d[k+3]); k += 4; }
+          else if (op === 4){ cl(); }
+          else break;
+        }
+        paint(a[0]);
+      } else {                                   // pdf.js 2.x/3.x: [ops[], coords[]]
+        const ops = a[0], c = a[1]; let k = 0;
+        for (const op of ops){
+          if (op === OPS.moveTo){ mv(c[k], c[k+1]); k += 2; }
+          else if (op === OPS.lineTo){ ln(c[k], c[k+1]); k += 2; }
+          else if (op === OPS.curveTo){ cv(c[k],c[k+1],c[k+2],c[k+3],c[k+4],c[k+5]); k += 6; }
+          else if (op === OPS.curveTo2){ cv2(c[k],c[k+1],c[k+2],c[k+3]); k += 4; }
+          else if (op === OPS.curveTo3){ cv3(c[k],c[k+1],c[k+2],c[k+3]); k += 4; }
+          else if (op === OPS.closePath){ cl(); }
+          else if (op === OPS.rectangle){ rect(c[k],c[k+1],c[k+2],c[k+3]); k += 4; }
+        }
+      }
+    }
+    else if (paintOps.has(f)) paint(f);
+  }
+  return out;
+}
+
+/* ---- 2) Bézier → úsečky / oblouky ---- */
+function bezPt(p, t){ const u = 1-t;
+  return [u*u*u*p[0]+3*u*u*t*p[2]+3*u*t*t*p[4]+t*t*t*p[6], u*u*u*p[1]+3*u*u*t*p[3]+3*u*t*t*p[5]+t*t*t*p[7]]; }
+function bezSplit(p){
+  const [x0,y0,x1,y1,x2,y2,x3,y3] = p;
+  const ax=(x0+x1)/2, ay=(y0+y1)/2, bx=(x1+x2)/2, by=(y1+y2)/2, cx=(x2+x3)/2, cy=(y2+y3)/2;
+  const dx=(ax+bx)/2, dy=(ay+by)/2, ex=(bx+cx)/2, ey=(by+cy)/2, fx=(dx+ex)/2, fy=(dy+ey)/2;
+  return [[x0,y0,ax,ay,dx,dy,fx,fy],[fx,fy,ex,ey,cx,cy,x3,y3]];
+}
+function mkArc(cx, cy, r, sa, sw){ // kanonický tvar: sweep > 0 (proti směru hodin)
+  if (sw < 0){ sa += sw; sw = -sw; }
+  return {t:'A', cx, cy, r, sa: norm2pi(sa), sw};
+}
+function fitCircle(p, tol){
+  const [x0,y0,x1,y1,x2,y2,x3,y3] = p;
+  let t0x = x1-x0, t0y = y1-y0; if (hyp(t0x,t0y) < 1e-9){ t0x = x2-x0; t0y = y2-y0; }
+  let t3x = x3-x2, t3y = y3-y2; if (hyp(t3x,t3y) < 1e-9){ t3x = x3-x1; t3y = y3-y1; }
+  const n0x = -t0y, n0y = t0x, n3x = -t3y, n3y = t3x;
+  const det = -n0x*n3y + n3x*n0y;
+  let cx, cy;
+  const M = bezPt(p, .5);
+  if (Math.abs(det) > 1e-9*hyp(n0x,n0y)*hyp(n3x,n3y)){
+    const dx = x3-x0, dy = y3-y0, a = (-dx*n3y + n3x*dy)/det;
+    cx = x0 + a*n0x; cy = y0 + a*n0y;
+  } else {
+    const d = 2*(x0*(M[1]-y3)+M[0]*(y3-y0)+x3*(y0-M[1]));
+    if (Math.abs(d) < 1e-12) return null;
+    const s0 = x0*x0+y0*y0, s1 = M[0]*M[0]+M[1]*M[1], s2 = x3*x3+y3*y3;
+    cx = (s0*(M[1]-y3)+s1*(y3-y0)+s2*(y0-M[1]))/d;
+    cy = (s0*(x3-M[0])+s1*(x0-x3)+s2*(M[0]-x0))/d;
+  }
+  const r = hyp(x0-cx, y0-cy);
+  if (!isFinite(r) || r > 1e6 || r < 1e-6) return null;
+  const tr = tol + 0.0004*r;
+  if (Math.abs(hyp(x3-cx, y3-cy) - r) > tr) return null;
+  for (const t of [.25,.5,.75]){ const q = bezPt(p, t); if (Math.abs(hyp(q[0]-cx, q[1]-cy) - r) > tr) return null; }
+  const cross = (M[0]-x0)*(y3-M[1]) - (M[1]-y0)*(x3-M[0]);
+  if (Math.abs(cross) < 1e-12) return null;
+  const ccw = cross > 0;
+  const a0 = Math.atan2(y0-cy, x0-cx), a3 = Math.atan2(y3-cy, x3-cx), aM = Math.atan2(M[1]-cy, M[0]-cx);
+  const sw = ccw ? norm2pi(a3-a0) : -norm2pi(a0-a3);
+  if (Math.abs(sw) < 1e-6) return null;
+  const mid = ccw ? norm2pi(aM-a0) : norm2pi(a0-aM);
+  if (mid > Math.abs(sw) + 1e-6) return null;
+  return {cx, cy, r, sa:a0, sw};
+}
+function bezToPrims(p, tol, depth){
+  const [x0,y0,x1,y1,x2,y2,x3,y3] = p;
+  if (hyp(x1-x0,y1-y0) < 1e-6 && hyp(x2-x0,y2-y0) < 1e-6 && hyp(x3-x0,y3-y0) < 1e-6) return [];
+  const chord = hyp(x3-x0, y3-y0);
+  if (chord > 1e-9){
+    const dl = (px, py) => Math.abs((x3-x0)*(py-y0)-(y3-y0)*(px-x0))/chord;
+    if (dl(x1,y1) <= tol*0.5 && dl(x2,y2) <= tol*0.5) return [{t:'L', x1:x0, y1:y0, x2:x3, y2:y3}];
+  }
+  const c = fitCircle(p, tol);
+  if (c) return [mkArc(c.cx, c.cy, c.r, c.sa, c.sw)];
+  if (depth >= 9) return chord > 1e-9 ? [{t:'L', x1:x0, y1:y0, x2:x3, y2:y3}] : [];
+  const [l, r] = bezSplit(p);
+  return bezToPrims(l, tol, depth+1).concat(bezToPrims(r, tol, depth+1));
+}
+function sameCircle(a, b, tol){
+  const m = Math.max(a.r, b.r), allow = tol*1.5 + 0.0006*m;
+  return hyp(a.cx-b.cx, a.cy-b.cy) <= allow && Math.abs(a.r-b.r) <= allow;
+}
+function consolidateArcs(ents, tol, gapTol){
+  gapTol = gapTol || tol; // spojí navazující oblouky téže kružnice; plný kruh → CIRCLE
+  const arcs = ents.filter(e => e.t === 'A'), rest = ents.filter(e => e.t !== 'A');
+  if (arcs.length > 4000) return ents;
+  const alive = arcs.slice(); let changed = true, guard = 0;
+  while (changed && guard++ < 60){
+    changed = false;
+    for (let i = 0; i < alive.length; i++){
+      const a = alive[i]; if (!a) continue;
+      for (let j = 0; j < alive.length; j++){
+        const b = alive[j]; if (i === j || !b) continue;
+        if (!!a.fill !== !!b.fill || !sameCircle(a, b, tol)) continue;
+        const angTol = gapTol/Math.min(a.r, b.r) + 1e-6;
+        if (Math.abs(angDiff(a.sa + a.sw, b.sa)) <= angTol && a.sw + b.sw <= TAU + angTol){
+          const w = a.sw + b.sw;
+          a.cx = (a.cx*a.sw + b.cx*b.sw)/w; a.cy = (a.cy*a.sw + b.cy*b.sw)/w; a.r = (a.r*a.sw + b.r*b.sw)/w;
+          a.sw = w; alive[j] = null; changed = true;
+        }
+      }
+    }
+  }
+  const out = rest.slice();
+  for (const a of alive){ if (!a) continue;
+    if (a.sw >= TAU - (gapTol/a.r + 1e-3)) out.push({t:'C', cx:a.cx, cy:a.cy, r:a.r, fill:a.fill});
+    else out.push(a);
+  }
+  return out;
+}
+function pathsToEntities(paths, tol){
+  const ents = [];
+  for (const p of paths) for (const s of p.subs) for (const g of s.segs){
+    if (g.t === 'L'){ if (hyp(g.x2-g.x1, g.y2-g.y1) > 1e-6) ents.push({t:'L', x1:g.x1, y1:g.y1, x2:g.x2, y2:g.y2, fill:p.fill}); }
+    else for (const q of bezToPrims(g.p, tol, 0)){ q.fill = p.fill; ents.push(q); }
+  }
+  return ents;
+}
+function arcBBox(e){
+  const pts = [[e.cx+e.r*Math.cos(e.sa), e.cy+e.r*Math.sin(e.sa)], [e.cx+e.r*Math.cos(e.sa+e.sw), e.cy+e.r*Math.sin(e.sa+e.sw)]];
+  for (let k = 0; k < 4; k++){ const an = k*Math.PI/2; if (norm2pi(an - e.sa) <= e.sw) pts.push([e.cx+e.r*Math.cos(an), e.cy+e.r*Math.sin(an)]); }
+  return [Math.min(...pts.map(p=>p[0])), Math.min(...pts.map(p=>p[1])), Math.max(...pts.map(p=>p[0])), Math.max(...pts.map(p=>p[1]))];
+}
+function entBBox(e){
+  if (e.t === 'L') return [Math.min(e.x1,e.x2), Math.min(e.y1,e.y2), Math.max(e.x1,e.x2), Math.max(e.y1,e.y2)];
+  if (e.t === 'C') return [e.cx-e.r, e.cy-e.r, e.cx+e.r, e.cy+e.r];
+  return arcBBox(e);
+}
+function entLen(e){ return e.t === 'L' ? hyp(e.x2-e.x1, e.y2-e.y1) : e.t === 'C' ? TAU*e.r : e.r*e.sw; }
+function loadEntities(opList, OPS){
+  const paths = extractPaths(opList, OPS);
+  let ents = consolidateArcs(pathsToEntities(paths, 0.02), 0.02);
+  ents.forEach((e, i) => { e.id = i; e.bb = entBBox(e); e.del = false; e.state = ''; });
+  return ents;
+}
+
+/* ---- 3) Čárkované čáry ---- */
+function detectDashed(lines, tol, slack){
+  slack = slack || 0.05;
+  const found = new Set(); if (lines.length < 3) return found;
+  const info = lines.map(l => { const len = hyp(l.x2-l.x1, l.y2-l.y1); let th = Math.atan2(l.y2-l.y1, l.x2-l.x1);
+    if (th < 0) th += Math.PI; if (th > Math.PI - 0.003) th -= Math.PI; return {l, len, th}; }).filter(o => o.len > 1e-6);
+  if (info.length < 3) return found;
+  info.sort((a, b) => a.th - b.th);
+  const groups = []; let g = [info[0]];
+  for (let i = 1; i < info.length; i++){ if (info[i].th - info[i-1].th < 0.004) g.push(info[i]); else { groups.push(g); g = [info[i]]; } }
+  groups.push(g);
+  const gtol = Math.max(tol, 0.05);
+  const flush = run => {
+    if (run.length < 3) return;
+    const len = run.map(r => r.t1 - r.t0), gaps = [];
+    for (let i = 1; i < run.length; i++) gaps.push(run[i].t0 - run[i-1].t1);
+    const mn = Math.min(...gaps), mx = Math.max(...gaps);
+    if (mx > 1.6*mn + 6*slack) return;
+    const inner = len.slice(1, -1);
+    for (const par of [0, 1]){ const v = inner.filter((_, i) => i % 2 === par); if (v.length > 1 && Math.max(...v) > 1.3*Math.min(...v) + slack) return; }
+    if (run.length === 3 && Math.max(...len) > 1.4*Math.min(...len) + 2*slack) return;
+    run.forEach(r => found.add(r.l));
+  };
+  const proc = sub => {
+    if (sub.length < 3) return;
+    sub.sort((a, b) => a.t0 - b.t0);
+    let run = [sub[0]];
+    for (let i = 1; i < sub.length; i++){
+      const prev = run[run.length-1], cur = sub[i], gap = cur.t0 - prev.t1;
+      if (gap > gtol && gap <= 1.6*Math.max(prev.t1-prev.t0, cur.t1-cur.t0)) run.push(cur); else { flush(run); run = [cur]; }
+    }
+    flush(run);
+  };
+  for (const grp of groups){
+    if (grp.length < 3) continue;
+    const th = grp.reduce((s, o) => s + o.th, 0)/grp.length, c = Math.cos(th), s = Math.sin(th);
+    const items = grp.map(o => { const l = o.l, t1 = l.x1*c+l.y1*s, t2 = l.x2*c+l.y2*s;
+      return {l, d: -(l.x1+l.x2)/2*s + (l.y1+l.y2)/2*c, t0: Math.min(t1,t2), t1: Math.max(t1,t2)}; });
+    items.sort((a, b) => a.d - b.d);
+    let sub = [items[0]];
+    for (let i = 1; i < items.length; i++){ if (items[i].d - items[i-1].d <= gtol) sub.push(items[i]); else { proc(sub); sub = [items[i]]; } }
+    proc(sub);
+  }
+  return found;
+}
+
+/* ---- 4) Model pro export ---- */
+function buildModel(ents, o){
+  const k = o.mmPerPt, tol = Math.max(1e-5, o.joinTolMm / k);
+  const M = {prims:[], pierce:[], bbox:null, stats:{}, warn:[], snap:null};
+  if (typeof restoreSnapped === 'function') restoreSnapped(ents);
+  const cand = [];
+  for (const e of ents){
+    e.state = '';
+    if (e.del){ e.state = 'del'; continue; }
+    if (o.crop){ const c = o.crop, b = e.bb;
+      if (!(b[0] >= c.x0-1e-6 && b[2] <= c.x1+1e-6 && b[1] >= c.y0-1e-6 && b[3] <= c.y1+1e-6)){ e.state = 'out'; continue; } }
+    if (o.skipFilled && e.fill){ e.state = 'skip'; continue; }
+    if (e.t !== 'C' && entLen(e)*k < o.minLenMm){ e.state = 'skip'; continue; }
+    cand.push(e);
+  }
+  if (o.snap && o.snap.on && o.crop && cand.length){
+    try { M.snap = snapEntities(cand, o.snap, k, o.crop); } catch(err){ M.snap = {err:String(err && err.message || err)}; }
+  }
+  // duplicity
+  const seen = new Set(), q = v => Math.round(v/tol); const work = []; let dups = 0;
+  for (const e of cand){
+    let key;
+    if (e.t === 'L'){ let a = [q(e.x1), q(e.y1)], b = [q(e.x2), q(e.y2)];
+      if (a[0] > b[0] || (a[0] === b[0] && a[1] > b[1])) [a, b] = [b, a]; key = 'L'+a+'|'+b; }
+    else if (e.t === 'A') key = 'A'+q(e.cx)+','+q(e.cy)+','+q(e.r)+','+Math.round(e.sa*1000)+','+Math.round(e.sw*1000);
+    else key = 'C'+q(e.cx)+','+q(e.cy)+','+q(e.r);
+    if (seen.has(key)){ e.state = 'dup'; dups++; } else { seen.add(key); work.push(e); }
+  }
+  // křížky
+  const crossPts = [];
+  if (o.cross){
+    const maxLen = o.crossMaxMm/k, minLen = 1/k;
+    const cl = work.filter(e => e.t === 'L' && entLen(e) <= maxLen && entLen(e) >= minLen);
+    if (cl.length <= 3000){
+      const used = new Set();
+      for (let i = 0; i < cl.length; i++){
+        const a = cl[i]; if (used.has(a)) continue;
+        const ax = a.x2-a.x1, ay = a.y2-a.y1, la = hyp(ax, ay);
+        for (let j = i+1; j < cl.length; j++){
+          const b = cl[j]; if (used.has(b)) continue;
+          const bx = b.x2-b.x1, by = b.y2-b.y1, lb = hyp(bx, by);
+          if (Math.abs((ax*bx+ay*by)/(la*lb)) > 0.02) continue;
+          const den = ax*by - ay*bx; if (Math.abs(den) < 1e-12) continue;
+          const t = ((b.x1-a.x1)*by - (b.y1-a.y1)*bx)/den, u = ((b.x1-a.x1)*ay - (b.y1-a.y1)*ax)/den;
+          if (t < .35 || t > .65 || u < .35 || u > .65) continue;
+          used.add(a); used.add(b);
+          crossPts.push({x:a.x1+t*ax, y:a.y1+t*ay});
+          if (o.crossRemove){ a.state = 'cross'; b.state = 'cross'; }
+          break;
+        }
+      }
+    }
+  }
+  // čárkované čáry
+  let dashN = 0; const dashEnts = [];
+  if (o.dashMode !== 'cut'){
+    const ds = detectDashed(work.filter(e => e.t === 'L' && e.state === ''), tol, o.dashSlack);
+    for (const e of ds){ e.state = 'dash'; dashN++; dashEnts.push(e); }
+  }
+  const cut = work.filter(e => e.state === '');
+  cut.forEach(e => e.state = 'cut');
+
+  // středy kružnic
+  const pierce = crossPts.slice();
+  if (o.centers && o.punch) for (const e of cut) if (e.t === 'C') pierce.push({x:e.cx, y:e.cy});
+  M.pierce = pierce;
+
+  // uzly a řetězení
+  const nodes = [], grid = new Map(), cell = Math.max(tol, 1e-4);
+  const gk = (i, j) => i+','+j;
+  const node = (x, y) => {
+    const ci = Math.floor(x/cell), cj = Math.floor(y/cell);
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++){
+      const lst = grid.get(gk(ci+di, cj+dj)); if (!lst) continue;
+      for (const id of lst){ const n = nodes[id];
+        if (Math.abs(n.x-x) <= tol && Math.abs(n.y-y) <= tol){ n.sx += x; n.sy += y; n.c++; n.x = n.sx/n.c; n.y = n.sy/n.c; return id; } }
+    }
+    const id = nodes.length; nodes.push({x, y, sx:x, sy:y, c:1, adj:[]});
+    const key = gk(ci, cj); if (!grid.has(key)) grid.set(key, []); grid.get(key).push(id); return id;
+  };
+  const pr = [], circles = [];
+  for (const e of cut){
+    if (e.t === 'C'){ circles.push({cx:e.cx, cy:e.cy, r:e.r}); continue; }
+    let na, nb;
+    if (e.t === 'L'){ na = node(e.x1, e.y1); nb = node(e.x2, e.y2); if (na === nb) continue; }
+    else { na = node(e.cx+e.r*Math.cos(e.sa), e.cy+e.r*Math.sin(e.sa)); nb = node(e.cx+e.r*Math.cos(e.sa+e.sw), e.cy+e.r*Math.sin(e.sa+e.sw)); }
+    pr.push({e, na, nb});
+  }
+  pr.forEach((P, i) => { nodes[P.na].adj.push({p:i}); nodes[P.nb].adj.push({p:i}); });
+  const orient = (P, from) => {
+    const e = P.e, fw = P.na === from;
+    if (e.t === 'L') return {t:'L', n0: fw ? P.na : P.nb, n1: fw ? P.nb : P.na};
+    return fw ? {t:'A', cx:e.cx, cy:e.cy, r:e.r, sa:e.sa, sw:e.sw, n0:P.na, n1:P.nb}
+              : {t:'A', cx:e.cx, cy:e.cy, r:e.r, sa:e.sa+e.sw, sw:-e.sw, n0:P.nb, n1:P.na};
+  };
+  const used = new Uint8Array(pr.length), chains = [];
+  const walk = (i, from) => {
+    const seq = []; let cur = i, entering = from, closed = false;
+    for (;;){
+      used[cur] = 1; const o2 = orient(pr[cur], entering); seq.push(o2);
+      if (o2.n1 === from){ closed = true; break; }
+      const adj = nodes[o2.n1].adj; if (adj.length !== 2) break;
+      const nx = adj[0].p === cur ? adj[1] : adj[0];
+      if (nx.p === cur || used[nx.p]) break;
+      cur = nx.p; entering = o2.n1;
+    }
+    return {seq, closed};
+  };
+  for (let n = 0; n < nodes.length; n++) if (nodes[n].adj.length !== 2) for (const a of nodes[n].adj) if (!used[a.p]) chains.push(walk(a.p, n));
+  for (let i = 0; i < pr.length; i++) if (!used[i]) chains.push(walk(i, pr[i].na));
+
+  const pt = n => nodes[n];
+  const tryMerge = (a, b) => {
+    if (a.t === 'L' && b.t === 'L'){
+      const A = pt(a.n0), B = pt(a.n1), C = pt(b.n1), dx = C.x-A.x, dy = C.y-A.y, L = hyp(dx, dy);
+      if (L < 1e-12) return false;
+      const dist = Math.abs(dx*(B.y-A.y) - dy*(B.x-A.x))/L;
+      if (dist <= tol*0.5 && ((B.x-A.x)*(C.x-B.x) + (B.y-A.y)*(C.y-B.y)) > 0){ a.n1 = b.n1; return true; }
+      return false;
+    }
+    if (a.t === 'A' && b.t === 'A' && Math.sign(a.sw) === Math.sign(b.sw) && sameCircle(a, b, tol) && Math.abs(a.sw + b.sw) <= TAU + 1e-3){
+      const wa = Math.abs(a.sw), wb = Math.abs(b.sw), w = wa + wb;
+      a.cx = (a.cx*wa + b.cx*wb)/w; a.cy = (a.cy*wa + b.cy*wb)/w; a.r = (a.r*wa + b.r*wb)/w;
+      a.sw += b.sw; a.n1 = b.n1; return true;
+    }
+    return false;
+  };
+  const parts = [];   // zjednodušené řetězce
+  let closedN = 0, openChains = 0;
+  for (const ch of chains){
+    const out = [];
+    for (const o2 of ch.seq){ const last = out[out.length-1]; if (last && tryMerge(last, o2)) continue; out.push(Object.assign({}, o2)); }
+    if (ch.closed && out.length > 1 && tryMerge(out[out.length-1], out[0])) out.shift();
+    if (ch.closed && out.length === 1 && out[0].t === 'A' && Math.abs(out[0].sw) >= TAU - (3*tol)/out[0].r - 1e-3){
+      circles.push({cx:out[0].cx, cy:out[0].cy, r:out[0].r}); continue;
+    }
+    if (!ch.closed) openChains++;
+    parts.push({prims:out, closed:ch.closed});
+  }
+  closedN = parts.filter(p => p.closed).length + circles.length;
+  const openEnds = nodes.filter(n => n.adj.length === 1).length;
+
+  // výstupní primitiva
+  const arcOut = (a, layer) => { const s = a.sw > 0 ? a.sa : a.sa + a.sw; return {k:'ARC', layer, cx:a.cx, cy:a.cy, r:a.r, a0:s, a1:s + Math.abs(a.sw)}; };
+  let nL = 0, nA = 0;
+  for (const part of parts){
+    for (const p of part.prims) p.t === 'L' ? nL++ : nA++;
+    if (o.polyMode && part.prims.length > 1){
+      const v = part.prims.map(p => { const s = pt(p.n0); return [s.x, s.y, p.t === 'A' ? Math.tan(p.sw/4) : 0]; });
+      if (!part.closed){ const e = pt(part.prims[part.prims.length-1].n1); v.push([e.x, e.y, 0]); }
+      M.prims.push({k:'POLY', layer:'OBRYS', closed:part.closed, v});
+    } else for (const p of part.prims){
+      if (p.t === 'L'){ const a = pt(p.n0), b = pt(p.n1); M.prims.push({k:'LINE', layer:'OBRYS', x1:a.x, y1:a.y, x2:b.x, y2:b.y}); }
+      else M.prims.push(arcOut(p, 'OBRYS'));
+    }
+  }
+  for (const c of circles) M.prims.push({k:'CIRCLE', layer:'OBRYS', cx:c.cx, cy:c.cy, r:c.r});
+  if (o.dashMode === 'bend') for (const e of dashEnts) M.prims.push({k:'LINE', layer:'OHYB', x1:e.x1, y1:e.y1, x2:e.x2, y2:e.y2});
+
+  // bounding box obrysu
+  let bb = null; const add = b => { if (!bb) bb = b.slice(); else { bb[0] = Math.min(bb[0], b[0]); bb[1] = Math.min(bb[1], b[1]); bb[2] = Math.max(bb[2], b[2]); bb[3] = Math.max(bb[3], b[3]); } };
+  for (const part of parts) for (const p of part.prims){
+    if (p.t === 'L'){ const a = pt(p.n0), b = pt(p.n1); add([Math.min(a.x,b.x), Math.min(a.y,b.y), Math.max(a.x,b.x), Math.max(a.y,b.y)]); }
+    else { const s = p.sw > 0 ? p.sa : p.sa + p.sw; add(arcBBox({cx:p.cx, cy:p.cy, r:p.r, sa:norm2pi(s), sw:Math.abs(p.sw)})); }
+  }
+  for (const c of circles) add([c.cx-c.r, c.cy-c.r, c.cx+c.r, c.cy+c.r]);
+  M.bbox = bb ? {x0:bb[0], y0:bb[1], x1:bb[2], y1:bb[3]} : null;
+  M.stats = {lines:nL, arcs:nA, circles:circles.length, polys:M.prims.filter(p => p.k === 'POLY').length,
+    closed:closedN, openEnds, openChains, pierce:pierce.length, dash:dashN, dups,
+    wMm: bb ? (bb[2]-bb[0])*k : 0, hMm: bb ? (bb[3]-bb[1])*k : 0, total:M.prims.length};
+  return M;
+}
+
+/* ---- 5) DXF (AC1009 – nejkompatibilnější; POLYLINE/VERTEX s bulge) ---- */
+function makeDXF(M, o){
+  const k = o.mmPerPt, bb = M.bbox, ox = (o.origin && bb) ? bb.x0 : 0, oy = (o.origin && bb) ? bb.y0 : 0;
+  const X = x => (x-ox)*k, Y = y => (y-oy)*k;
+  const f = v => { const s = v.toFixed(4); return /^-0\.0+$/.test(s) ? s.slice(1) : s; };
+  const deg = a => { let d = a*180/Math.PI % 360; if (d < 0) d += 360; return d; };
+  const o2 = []; const g = (c, v) => { o2.push(String(c)); o2.push(String(v)); };
+  const layers = {OBRYS:7};
+  const pierceR = o.pierceD/2;
+  const hasPierce = !!o.punch && M.pierce.length > 0 && o.pierceD > 0;
+  if (hasPierce) layers.TRUPUNCH = 1;
+  if (M.prims.some(p => p.layer === 'OHYB')) layers.OHYB = 5;
+  const ex0 = bb ? X(bb.x0) : 0, ey0 = bb ? Y(bb.y0) : 0, ex1 = bb ? X(bb.x1) : 0, ey1 = bb ? Y(bb.y1) : 0;
+  g(0,'SECTION'); g(2,'HEADER'); g(9,'$ACADVER'); g(1,'AC1009');
+  g(9,'$EXTMIN'); g(10,f(ex0)); g(20,f(ey0)); g(30,'0.0'); g(9,'$EXTMAX'); g(10,f(ex1)); g(20,f(ey1)); g(30,'0.0'); g(0,'ENDSEC');
+  g(0,'SECTION'); g(2,'TABLES');
+  g(0,'TABLE'); g(2,'LTYPE'); g(70,1); g(0,'LTYPE'); g(2,'CONTINUOUS'); g(70,0); g(3,'Solid line'); g(72,65); g(73,0); g(40,'0.0'); g(0,'ENDTAB');
+  g(0,'TABLE'); g(2,'LAYER'); g(70,Object.keys(layers).length);
+  for (const n in layers){ g(0,'LAYER'); g(2,n); g(70,0); g(62,layers[n]); g(6,'CONTINUOUS'); }
+  g(0,'ENDTAB'); g(0,'ENDSEC');
+  g(0,'SECTION'); g(2,'BLOCKS'); g(0,'ENDSEC');
+  g(0,'SECTION'); g(2,'ENTITIES');
+  for (const p of M.prims){
+    if (p.k === 'LINE'){ g(0,'LINE'); g(8,p.layer); g(10,f(X(p.x1))); g(20,f(Y(p.y1))); g(30,'0.0'); g(11,f(X(p.x2))); g(21,f(Y(p.y2))); g(31,'0.0'); }
+    else if (p.k === 'ARC'){ g(0,'ARC'); g(8,p.layer); g(10,f(X(p.cx))); g(20,f(Y(p.cy))); g(30,'0.0'); g(40,f(p.r*k)); g(50,f(deg(p.a0))); g(51,f(deg(p.a1))); }
+    else if (p.k === 'CIRCLE'){ g(0,'CIRCLE'); g(8,p.layer); g(10,f(X(p.cx))); g(20,f(Y(p.cy))); g(30,'0.0'); g(40,f(p.r*k)); }
+    else if (p.k === 'POLY'){
+      g(0,'POLYLINE'); g(8,p.layer); g(66,1); g(10,'0.0'); g(20,'0.0'); g(30,'0.0'); g(70,p.closed ? 1 : 0);
+      for (const v of p.v){ g(0,'VERTEX'); g(8,p.layer); g(10,f(X(v[0]))); g(20,f(Y(v[1]))); g(30,'0.0'); if (Math.abs(v[2]) > 1e-9) g(42,v[2].toFixed(8)); }
+      g(0,'SEQEND'); g(8,p.layer);
+    }
+  }
+  if (hasPierce) for (const c of M.pierce){ g(0,'CIRCLE'); g(8,'TRUPUNCH'); g(10,f(X(c.x))); g(20,f(Y(c.y))); g(30,'0.0'); g(40,f(pierceR)); }
+  g(0,'ENDSEC'); g(0,'EOF');
+  return o2.join('\r\n') + '\r\n';
+}
+
+/* ---- 6) Načtení vektorového PDF + automatická kalibrace z kót ---- */
+function findArrows(paths){
+  const out = [];
+  for (const p of paths){
+    if (!p.fill || p.subs.length !== 1) continue;
+    const segs = p.subs[0].segs; if (segs.length < 2 || segs.length > 3 || segs.some(s => s.t !== 'L')) continue;
+    const v = [[segs[0].x1, segs[0].y1]]; for (const s of segs) v.push([s.x2, s.y2]);
+    if (v.length === 4 && hyp(v[3][0]-v[0][0], v[3][1]-v[0][1]) < 1e-6) v.pop();
+    if (v.length !== 3) continue;
+    let bi = 0, bl = Infinity;
+    for (let i = 0; i < 3; i++){ const a = v[i], b = v[(i+1)%3], l = hyp(a[0]-b[0], a[1]-b[1]); if (l < bl){ bl = l; bi = i; } }
+    const a = v[bi], b = v[(bi+1)%3], apex = v[(bi+2)%3], mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2, L = hyp(apex[0]-mx, apex[1]-my);
+    if (L < 1e-6 || bl < 1e-6 || L/bl < 1.3 || L > 80) continue;
+    out.push({tip:apex, u:[(apex[0]-mx)/L, (apex[1]-my)/L], L});
+  }
+  return out;
+}
+function findDimensions(paths){ // páry šipek ležících na jedné přímce → rozměrové čáry (od hrotu k hrotu)
+  const arrows = findArrows(paths), cands = [], dims = [];
+  for (let i = 0; i < arrows.length; i++) for (let j = i+1; j < arrows.length; j++){
+    const A = arrows[i], B = arrows[j], wx = B.tip[0]-A.tip[0], wy = B.tip[1]-A.tip[1], d = hyp(wx, wy); if (d < 1e-6) continue;
+    const ex = wx/d, ey = wy/d;
+    if (Math.abs(A.u[0]*ey - A.u[1]*ex) > 0.04 || Math.abs(B.u[0]*ey - B.u[1]*ex) > 0.04) continue;
+    const da = A.u[0]*ex + A.u[1]*ey, db = B.u[0]*ex + B.u[1]*ey;
+    if (!((da < 0 && db > 0) || (da > 0 && db < 0))) continue;
+    cands.push({i, j, d, ex, ey});
+  }
+  cands.sort((a, b) => a.d - b.d);
+  const used = new Set();
+  for (const c of cands){ if (used.has(c.i) || used.has(c.j)) continue; used.add(c.i); used.add(c.j);
+    dims.push({p0:arrows[c.i].tip, p1:arrows[c.j].tip, d:c.d, ex:c.ex, ey:c.ey}); }
+  return dims;
+}
+function parseDimText(str){
+  const s = String(str).trim().replace(/\s/g, '').replace(',', '.');
+  if (!/^\d{1,5}(\.\d{1,3})?$/.test(s)) return 0;
+  return parseFloat(s) || 0;
+}
+function parseDimFull(str){ // číslo s volitelnou tolerancí v témže řetězci: {v, off} (off = střed tolerance vůči jmenovité hodnotě)
+  const s = String(str).trim().replace(/,/g, '.').replace(/[−–]/g, '-').replace(/\s+/g, '');
+  let m = s.match(/^(\d{1,5}(?:\.\d{1,3})?)$/); if (m) return {v:+m[1], off:0};
+  m = s.match(/^(\d{1,5}(?:\.\d{1,3})?)±(\d+(?:\.\d+)?)$/); if (m) return {v:+m[1], off:0};
+  m = s.match(/^(\d{1,5}(?:\.\d{1,3})?)(?:\+(\d+(?:\.\d+)?))?(?:-(\d+(?:\.\d+)?))?$/);
+  if (m && (m[2] || m[3])) return {v:+m[1], off:((+m[2] || 0) - (+m[3] || 0))/2};
+  return null;
+}
+function parseTolItem(str){ // samostatná tolerance: "+0,2", "-0,1", "±0,05", "+0,2/-0,1" → {plus, minus} nebo null
+  const s = String(str).trim().replace(/,/g, '.').replace(/[−–]/g, '-').replace(/\s+/g, '');
+  if (!/^([+±-]\d+(?:\.\d+)?\/?)+$/.test(s)) return null;
+  let plus = 0, minus = 0; const re = /([+±-])(\d+(?:\.\d+)?)/g; let m;
+  while ((m = re.exec(s))){ const v = +m[2]; if (m[1] === '+') plus += v; else if (m[1] === '-') minus += v; }
+  return {plus, minus};
+}
+function itemGeom(t){ // střed a směr textové položky pdf.js
+  const tr = t.transform, fs = hyp(tr[0], tr[1]) || 1, ux = tr[0]/fs, uy = tr[1]/fs, w = t.width || 0;
+  return {fs, ux, uy, w, cx:tr[4] + ux*w/2 - uy*fs*0.35, cy:tr[5] + uy*w/2 + ux*fs*0.35};
+}
+function toleranceNear(texts, t, g){ // sousední položky s tolerancí → střed tolerance
+  let plus = 0, minus = 0, any = false;
+  for (const u of texts){
+    if (u === t) continue; const tp = parseTolItem(u.str); if (!tp) continue;
+    const h = itemGeom(u), dx = h.cx - g.cx, dy = h.cy - g.cy, al = dx*g.ux + dy*g.uy, pe = -dx*g.uy + dy*g.ux;
+    if (Math.abs(al) > g.w/2 + h.w + 1.5*g.fs || Math.abs(pe) > 1.6*g.fs) continue;
+    plus += tp.plus; minus += tp.minus; any = true;
+  }
+  return any ? (plus - minus)/2 : 0;
+}
+function matchDimTexts(dims, texts, minD){ // vrací kandidáty {s: mm/jednotku, w, val, dim}
+  const cand = [];
+  for (const t of texts){
+    const pf = parseDimFull(t.str); if (!pf || !(pf.v > 0)) continue; const v = pf.v;
+    const g0 = itemGeom(t), fs = g0.fs, ux = g0.ux, uy = g0.uy, cx = g0.cx, cy = g0.cy;
+    let best = null;
+    for (const D of dims){
+      if (D.d < minD) continue;
+      if (Math.abs(ux*D.ey - uy*D.ex) > 0.07 && Math.abs(ux*D.ex + uy*D.ey) > 0.07) continue;
+      const rx = cx - D.p0[0], ry = cy - D.p0[1], s = rx*D.ex + ry*D.ey, dp = Math.abs(rx*D.ey - ry*D.ex);
+      if (s < -0.05*D.d || s > 1.05*D.d || dp > 3.5*fs) continue;
+      if (!best || dp < best.dp) best = {D, dp};
+    }
+    if (best) cand.push({s:v/best.D.d, w:best.D.d, val:v, off:pf.off + toleranceNear(texts, t, g0), dim:best.D, dp:best.dp});
+  }
+  const byDim = new Map();
+  for (const c of cand){ const o = byDim.get(c.dim); if (!o || c.dp < o.dp) byDim.set(c.dim, c); }
+  return Array.from(byDim.values());
+}
+function consensusScale(cand, relTol){
+  if (!cand.length) return null;
+  relTol = relTol || 0.008;
+  let best = null;
+  for (const c of cand){
+    let sw = 0, n = 0; for (const o of cand) if (Math.abs(o.s - c.s)/c.s <= relTol){ sw += o.w; n++; }
+    if (!best || n > best.n || (n === best.n && sw > best.sw)) best = {sw, n, s:c.s};
+  }
+  const grp = cand.filter(o => Math.abs(o.s - best.s)/best.s <= relTol);
+  const W = grp.reduce((a, o) => a + o.w, 0), s = grp.reduce((a, o) => a + o.s*o.w, 0)/W;
+  const spread = Math.max(...grp.map(o => Math.abs(o.s - s)/s));
+  return {scale:s, n:grp.length, total:cand.length, spread, used:grp.map(o => ({p0:o.dim.p0, p1:o.dim.p1, val:o.val}))};
+}
+function loadVector(opList, OPS, texts){
+  const paths = extractPaths(opList, OPS);
+  const ents = consolidateArcs(pathsToEntities(paths, 0.02), 0.02);
+  ents.forEach((e, i) => { e.id = i; e.bb = entBBox(e); e.del = false; e.state = ''; });
+  let auto = null, dims = [];
+  try { dims = matchDimTexts(findDimensions(paths), texts || [], 8); auto = consensusScale(dims); } catch(err){ auto = null; }
+  let nums = [], dia = [];
+  try { const q = textsToNums(texts || []); nums = q.nums; dia = q.dia; } catch(err){}
+  return {ents, auto, dims, nums, dia};
+}
+
+/* ---- 7) Rastr (JPG/PNG): binarizace → kostra → úsečky, oblouky, kružnice ---- */
+function otsuThreshold(gray){
+  const h = new Float64Array(256), n = gray.length; let sum = 0;
+  for (let i = 0; i < n; i++) h[gray[i]]++;
+  for (let i = 0; i < 256; i++) sum += i*h[i];
+  let wB = 0, sB = 0, best = -1, thr = 128;
+  for (let t = 0; t < 256; t++){
+    wB += h[t]; if (!wB) continue; const wF = n - wB; if (!wF) break;
+    sB += t*h[t]; const mB = sB/wB, mF = (sum - sB)/wF, v = wB*wF*(mB-mF)*(mB-mF);
+    if (v > best){ best = v; thr = t; }
+  }
+  return Math.max(60, Math.min(235, thr));
+}
+function binarizePadded(gray, w, h, thr, invert, localWin){
+  const W = w + 2, H = h + 2, out = new Uint8Array(W*H);
+  if (localWin > 0){
+    const iw = w + 1, I = new Float64Array(iw*(h+1));
+    for (let y = 0; y < h; y++){ let row = 0; for (let x = 0; x < w; x++){ row += gray[y*w+x]; I[(y+1)*iw + x+1] = I[y*iw + x+1] + row; } }
+    const r = Math.max(3, localWin >> 1);
+    for (let y = 0; y < h; y++){
+      const y0 = Math.max(0, y-r), y1 = Math.min(h, y+r+1);
+      for (let x = 0; x < w; x++){
+        const x0 = Math.max(0, x-r), x1 = Math.min(w, x+r+1);
+        const mean = (I[y1*iw+x1] - I[y0*iw+x1] - I[y1*iw+x0] + I[y0*iw+x0])/((x1-x0)*(y1-y0)), g = gray[y*w+x];
+        out[(y+1)*W + x+1] = (g < mean - 14 && g < 215) ? 1 : 0;
+      }
+    }
+  } else for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out[(y+1)*W + x+1] = gray[y*w+x] < thr ? 1 : 0;
+  if (invert) for (let y = 1; y <= h; y++) for (let x = 1; x <= w; x++) out[y*W+x] ^= 1;
+  return {img:out, W, H};
+}
+function removeSmallComponents(img, W, H, minDim){
+  if (minDim <= 1) return;
+  const lab = new Uint8Array(W*H), stack = new Int32Array(W*H), off = [-W-1,-W,-W+1,-1,1,W-1,W,W+1];
+  for (let s = W+1; s < W*H - W - 1; s++){
+    if (!img[s] || lab[s]) continue;
+    let sp = 0, cnt = 0; stack[sp++] = s; lab[s] = 1;
+    let x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1; const members = [];
+    while (sp){
+      const i = stack[--sp]; members.push(i); const x = i % W, y = (i/W) | 0;
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+      for (let k = 0; k < 8; k++){ const j = i + off[k]; if (img[j] && !lab[j]){ lab[j] = 1; stack[sp++] = j; } }
+    }
+    if (Math.max(x1-x0, y1-y0) + 1 < minDim) for (const i of members) img[i] = 0;
+  }
+}
+function thinZS(img, W, H){
+  let rem = new Int32Array(1 << 16), changed = true, guard = 0;
+  while (changed && guard++ < 200){
+    changed = false;
+    for (let pass = 0; pass < 2; pass++){
+      let nr = 0;
+      for (let y = 1; y < H-1; y++){
+        const row = y*W;
+        for (let x = 1; x < W-1; x++){
+          const i = row + x; if (!img[i]) continue;
+          const p2 = img[i-W], p3 = img[i-W+1], p4 = img[i+1], p5 = img[i+W+1], p6 = img[i+W], p7 = img[i+W-1], p8 = img[i-1], p9 = img[i-W-1];
+          const B = p2+p3+p4+p5+p6+p7+p8+p9; if (B < 2 || B > 6) continue;
+          const A = (!p2&&p3) + (!p3&&p4) + (!p4&&p5) + (!p5&&p6) + (!p6&&p7) + (!p7&&p8) + (!p8&&p9) + (!p9&&p2); if (A !== 1) continue;
+          if (pass === 0){ if (p2*p4*p6 || p4*p6*p8) continue; } else { if (p2*p4*p8 || p2*p6*p8) continue; }
+          if (nr >= rem.length){ const n2 = new Int32Array(rem.length*2); n2.set(rem); rem = n2; }
+          rem[nr++] = i;
+        }
+      }
+      for (let k = 0; k < nr; k++) img[rem[k]] = 0;
+      if (nr) changed = true;
+    }
+  }
+  // odstranění schodových rohových pixelů (zůstane 8-souvislá čára šířky 1)
+  const off = [-W-1,-W,-W+1,-1,1,W-1,W,W+1];
+  for (let y = 1; y < H-1; y++) for (let x = 1; x < W-1; x++){
+    const i = y*W + x; if (!img[i]) continue;
+    let c = 0, a = -1, b = -1;
+    for (let k = 0; k < 8; k++) if (img[i+off[k]]){ c++; if (a < 0) a = i+off[k]; else b = i+off[k]; }
+    if (c === 2){ const ax = a % W, ay = (a/W) | 0, bx = b % W, by = (b/W) | 0; if (Math.abs(ax-bx) <= 1 && Math.abs(ay-by) <= 1) img[i] = 0; }
+  }
+}
+function traceSkeleton(img, W, H, spurLen){
+  const N = W*H, off = [-W-1,-W,-W+1,-1,1,W-1,W,W+1];
+  for (let pass = 0; pass < 3; pass++){
+    const cnt = new Uint8Array(N);
+    for (let y = 1; y < H-1; y++) for (let x = 1; x < W-1; x++){ const i = y*W+x; if (img[i]){ let c = 0; for (let k = 0; k < 8; k++) c += img[i+off[k]]; cnt[i] = c; } }
+    const jc = new Int32Array(N), cx = [0], cy = [0]; let nc = 0; const stack = [];
+    for (let s = W+1; s < N-W-1; s++){
+      if (!img[s] || cnt[s] < 3 || jc[s]) continue;
+      nc++; let sx = 0, sy = 0, n = 0; stack.length = 0; stack.push(s); jc[s] = nc;
+      while (stack.length){ const i = stack.pop(); sx += i % W; sy += (i/W) | 0; n++;
+        for (let k = 0; k < 8; k++){ const j = i + off[k]; if (img[j] && cnt[j] >= 3 && !jc[j]){ jc[j] = nc; stack.push(j); } } }
+      cx.push(sx/n); cy.push(sy/n);
+    }
+    const vis = new Uint8Array(N), chains = [];
+    const walk = (start, a) => {
+      const pts = [], pix = []; let b = 0, cur = start, prev = -1;
+      if (a) pts.push([cx[a], cy[a]]);
+      for (;;){
+        vis[cur] = 1; pts.push([cur % W, (cur/W) | 0]); pix.push(cur);
+        let next = -1, hit = 0;
+        for (let k = 0; k < 8; k++){
+          const j = cur + off[k]; if (!img[j] || j === prev) continue;
+          if (jc[j]){ if (a && jc[j] === a && pts.length <= 2) continue; hit = jc[j]; break; }
+          if (!vis[j] && next < 0) next = j;
+        }
+        if (hit){ b = hit; pts.push([cx[b], cy[b]]); break; }
+        if (next < 0) break; prev = cur; cur = next;
+      }
+      return {pts, pix, a, b, closed:false};
+    };
+    for (let i = W+1; i < N-W-1; i++) if (img[i] && cnt[i] === 1 && !vis[i]) chains.push(walk(i, 0));
+    for (let i = W+1; i < N-W-1; i++){
+      if (!img[i] || vis[i] || jc[i] || cnt[i] === 0) continue;
+      let a = 0; for (let k = 0; k < 8; k++){ const j = i + off[k]; if (jc[j]){ a = jc[j]; break; } }
+      if (a) chains.push(walk(i, a));
+    }
+    for (let i = W+1; i < N-W-1; i++){
+      if (!img[i] || vis[i] || jc[i] || cnt[i] === 0) continue;
+      const ch = walk(i, 0); const f = ch.pix[0], l = ch.pix[ch.pix.length-1];
+      if (ch.pix.length >= 3 && off.some(o => f + o === l)){ ch.closed = true; ch.pts.push(ch.pts[0].slice()); }
+      chains.push(ch);
+    }
+    // ořez ostnů (krátké větve končící volným koncem)
+    let pruned = 0;
+    if (pass < 2 && spurLen > 0) for (const ch of chains){
+      if (!ch.closed && ((ch.a > 0) !== (ch.b > 0)) && ch.pix.length < spurLen){ for (const p of ch.pix) img[p] = 0; pruned++; }
+    }
+    if (pruned && pass < 2) continue;
+    return {chains, cx, cy};
+  }
+}
+function joinChains(tr){
+  const chains = tr.chains, deg = new Map(), at = new Map();
+  chains.forEach((c, i) => { for (const [id, end] of [[c.a, 0], [c.b, 1]]) if (id){ deg.set(id, (deg.get(id)||0)+1); if (!at.has(id)) at.set(id, []); at.get(id).push([i, end]); } });
+  const used = new Uint8Array(chains.length), out = [];
+  const build = (i, rev) => { let pts = chains[i].pts.slice(), a = chains[i].a, b = chains[i].b; if (rev){ pts.reverse(); [a, b] = [b, a]; } return {pts, a, b}; };
+  const extend = (cur, i0) => {
+    let guard = 0;
+    while (cur.b && deg.get(cur.b) === 2 && guard++ < 100000){
+      let nx = null;
+      for (const r of at.get(cur.b)) if (!used[r[0]]) { nx = r; break; }
+      if (!nx) break;
+      used[nx[0]] = 1; const nb = build(nx[0], nx[1] === 1);
+      cur.pts = cur.pts.concat(nb.pts.slice(1)); cur.b = nb.b;
+    }
+  };
+  for (let i = 0; i < chains.length; i++){
+    if (used[i]) continue; const c = chains[i];
+    if (c.closed){ used[i] = 1; out.push({pts:c.pts, a:0, b:0, closed:true}); continue; }
+    const aTerm = !c.a || deg.get(c.a) !== 2, bTerm = !c.b || deg.get(c.b) !== 2;
+    if (!aTerm && !bTerm) continue;
+    used[i] = 1; const cur = build(i, !aTerm && bTerm); extend(cur, i);
+    out.push({pts:cur.pts, a:cur.a, b:cur.b, closed:false});
+  }
+  for (let i = 0; i < chains.length; i++){ // cykly složené jen z dvojitých uzlů
+    if (used[i]) continue; used[i] = 1; const cur = build(i, false); const startA = cur.a; extend(cur, i);
+    out.push({pts:cur.pts, a:0, b:0, closed:cur.b === startA && cur.pts.length > 3});
+  }
+  return out;
+}
+/* --- tvarové proložení --- */
+function fitLineTLS(pts, i0, i1){
+  let mx = 0, my = 0; const n = i1 - i0 + 1;
+  for (let i = i0; i <= i1; i++){ mx += pts[i][0]; my += pts[i][1]; } mx /= n; my /= n;
+  let sxx = 0, sxy = 0, syy = 0;
+  for (let i = i0; i <= i1; i++){ const dx = pts[i][0]-mx, dy = pts[i][1]-my; sxx += dx*dx; sxy += dx*dy; syy += dy*dy; }
+  const th = 0.5*Math.atan2(2*sxy, sxx - syy);
+  return {mx, my, dx:Math.cos(th), dy:Math.sin(th)};
+}
+function maxDevLine(pts, i0, i1, L){
+  let m = 0; for (let i = i0; i <= i1; i++){ const d = Math.abs((pts[i][0]-L.mx)*L.dy - (pts[i][1]-L.my)*L.dx); if (d > m) m = d; } return m;
+}
+function fitCircleGN(pts, i0, i1){
+  const n = i1 - i0 + 1; if (n < 5) return null;
+  let mx = 0, my = 0; for (let i = i0; i <= i1; i++){ mx += pts[i][0]; my += pts[i][1]; } mx /= n; my /= n;
+  let Suu = 0, Suv = 0, Svv = 0, Suuu = 0, Svvv = 0, Suvv = 0, Svuu = 0;
+  for (let i = i0; i <= i1; i++){ const u = pts[i][0]-mx, v = pts[i][1]-my; Suu += u*u; Suv += u*v; Svv += v*v; Suuu += u*u*u; Svvv += v*v*v; Suvv += u*v*v; Svuu += v*u*u; }
+  const det = Suu*Svv - Suv*Suv; if (Math.abs(det) < 1e-9) return null;
+  const b1 = 0.5*(Suuu + Suvv), b2 = 0.5*(Svvv + Svuu);
+  const uc = (b1*Svv - b2*Suv)/det, vc = (Suu*b2 - Suv*b1)/det;
+  let cx = mx + uc, cy = my + vc, r = Math.sqrt(uc*uc + vc*vc + (Suu + Svv)/n);
+  if (!isFinite(r) || r > 1e6) return null;
+  for (let it = 0; it < 5; it++){ // geometrické zpřesnění (Gauss–Newton)
+    let a11 = 0, a12 = 0, a13 = 0, a22 = 0, a23 = 0, a33 = 0, g1 = 0, g2 = 0, g3 = 0;
+    for (let i = i0; i <= i1; i++){
+      const dx = pts[i][0]-cx, dy = pts[i][1]-cy, d = hyp(dx, dy) || 1e-9, res = d - r, jx = -dx/d, jy = -dy/d;
+      a11 += jx*jx; a12 += jx*jy; a13 += -jx; a22 += jy*jy; a23 += -jy; a33 += 1; g1 += jx*res; g2 += jy*res; g3 += -res;
+    }
+    const D = a11*(a22*a33 - a23*a23) - a12*(a12*a33 - a23*a13) + a13*(a12*a23 - a22*a13); if (Math.abs(D) < 1e-12) break;
+    const dxs = (g1*(a22*a33 - a23*a23) - a12*(g2*a33 - a23*g3) + a13*(g2*a23 - a22*g3))/D;
+    const dys = (a11*(g2*a33 - a23*g3) - g1*(a12*a33 - a23*a13) + a13*(a12*g3 - g2*a13))/D;
+    const drs = (a11*(a22*g3 - g2*a23) - a12*(a12*g3 - g2*a13) + g1*(a12*a23 - a22*a13))/D;
+    cx -= dxs; cy -= dys; r -= drs;
+    if (Math.abs(dxs) + Math.abs(dys) + Math.abs(drs) < 1e-4) break;
+  }
+  if (!isFinite(r) || r < 1e-3 || r > 1e6) return null;
+  return {cx, cy, r};
+}
+function arcSweepOf(pts, i0, i1, c){ // součet úhlových přírůstků (se znaménkem)
+  let s = 0, prev = Math.atan2(pts[i0][1]-c.cy, pts[i0][0]-c.cx), mono = true, sg = 0;
+  for (let i = i0+1; i <= i1; i++){
+    const a = Math.atan2(pts[i][1]-c.cy, pts[i][0]-c.cx), d = angDiff(a, prev); prev = a;
+    if (Math.abs(d) > 1e-9){ const q = d > 0 ? 1 : -1; if (!sg) sg = q; else if (q !== sg && Math.abs(d)*c.r > 1.5) mono = false; }
+    s += d;
+  }
+  return {sweep:s, mono};
+}
+function fitRange(pts, i0, i1, tol, out, depth){
+  if (i1 - i0 < 1) return;
+  const A = pts[i0], B = pts[i1], chord = hyp(B[0]-A[0], B[1]-A[1]);
+  const Ls = fitLineTLS(pts, i0, i1), ld = maxDevLine(pts, i0, i1, Ls);
+  if (ld <= 0.6*tol || i1 - i0 < 3){ out.push({t:'L', i0, i1, line:Ls}); return; }
+  if (i1 - i0 >= 6 && chord > 4*tol){
+    const c = fitCircleGN(pts, i0, i1);
+    if (c && c.r > 2.5*tol){
+      let m = 0; for (let i = i0; i <= i1; i++){ const d = Math.abs(hyp(pts[i][0]-c.cx, pts[i][1]-c.cy) - c.r); if (d > m) m = d; }
+      if (m <= 1.5*tol){
+        const sw = arcSweepOf(pts, i0, i1, c), sag = c.r - Math.sqrt(Math.max(0, c.r*c.r - chord*chord/4));
+        if (sw.mono && Math.abs(sw.sweep) < TAU + 0.3 && (sag >= 1.2*tol || Math.abs(sw.sweep) >= 0.35)){ out.push({t:'A', i0, i1, c, sweep:sw.sweep}); return; }
+      }
+    }
+  }
+  if (ld <= tol){ out.push({t:'L', i0, i1, line:Ls}); return; }
+  // rozdělení v bodě největší odchylky od tětivy
+  let k = -1, md = -1;
+  if (chord > 1e-9){ for (let i = i0+1; i < i1; i++){ const d = Math.abs((pts[i][0]-A[0])*(B[1]-A[1]) - (pts[i][1]-A[1])*(B[0]-A[0]))/chord; if (d > md){ md = d; k = i; } } }
+  else { for (let i = i0+1; i < i1; i++){ const d = hyp(pts[i][0]-A[0], pts[i][1]-A[1]); if (d > md){ md = d; k = i; } } }
+  if (k <= i0 || k >= i1 || depth > 60){ out.push({t:'L', i0, i1, line:Ls}); return; }
+  fitRange(pts, i0, k, tol, out, depth+1); fitRange(pts, k, i1, tol, out, depth+1);
+}
+function lineIntersect(P, Q){ // přímky {mx,my,dx,dy}
+  const den = P.dx*Q.dy - P.dy*Q.dx; if (Math.abs(den) < 0.17) return null; // úhel < ~10°
+  const t = ((Q.mx-P.mx)*Q.dy - (Q.my-P.my)*Q.dx)/den;
+  return [P.mx + t*P.dx, P.my + t*P.dy];
+}
+function fitChainToPrims(pts, closed, o){
+  // vrací pole primitiv {t:'L',p0,p1} | {t:'A',cx,cy,r,sa,sw} | {t:'C',cx,cy,r} v pixelových souřadnicích (y dolů)
+  const tol = o.tol, n = pts.length;
+  if (n < 2) return [];
+  if (closed && n >= 8){
+    const c = fitCircleGN(pts, 0, n-1);
+    if (c && c.r > 2.5*tol){
+      let m = 0; for (const p of pts){ const d = Math.abs(hyp(p[0]-c.cx, p[1]-c.cy) - c.r); if (d > m) m = d; }
+      const sw = arcSweepOf(pts, 0, n-1, c);
+      if (m <= tol && sw.mono && Math.abs(Math.abs(sw.sweep) - TAU) < 0.5) return [{t:'C', cx:c.cx, cy:c.cy, r:c.r}];
+    }
+  }
+  let ranges = [];
+  if (closed){
+    let k = 1, md = -1; for (let i = 1; i < n-1; i++){ const d = hyp(pts[i][0]-pts[0][0], pts[i][1]-pts[0][1]); if (d > md){ md = d; k = i; } }
+    fitRange(pts, 0, k, tol, ranges, 0); fitRange(pts, k, n-1, tol, ranges, 0);
+  } else fitRange(pts, 0, n-1, tol, ranges, 0);
+  // sloučení sousedních úseček téže přímky / oblouků téže kružnice vzniklých dělením
+  // vrcholy: V[k] mezi primitivem k-1 a k
+  const m = ranges.length, V = [];
+  for (let k = 0; k <= m; k++){ const idx = k === m ? ranges[m-1].i1 : ranges[k].i0; V.push(pts[idx].slice()); }
+  const lenOf = k => { const r = ranges[k]; return hyp(V[k+1][0]-V[k][0], V[k+1][1]-V[k][1]); };
+  // krátké spojovací kousky (zaoblení rohu kostry) vypustit
+  const tiny = o.tiny;
+  let alive = ranges.map(() => true);
+  for (let k = 0; k < m; k++){
+    if (ranges[k].t === 'L' && lenOf(k) < tiny && m > 1){
+      const prevOk = k > 0 || closed, nextOk = k < m-1 || closed;
+      if (prevOk && nextOk && ranges[(k+m-1)%m].t === 'L' && ranges[(k+1)%m].t === 'L') alive[k] = false;
+    }
+  }
+  // sestavení výsledných segmentů s opravou rohů
+  const segs = []; for (let k = 0; k < m; k++) if (alive[k]) segs.push(k);
+  const s = segs.length; if (!s) return [];
+  const P = []; // vrcholy mezi živými segmenty: P[q] = začátek segmentu q
+  for (let q = 0; q < s; q++){
+    const k = segs[q], pk = segs[(q+s-1)%s];
+    let v = V[k].slice();
+    const first = q === 0 && !closed;
+    if (!first){
+      const A = ranges[pk], B = ranges[k];
+      if (A.t === 'L' && B.t === 'L'){
+        const ip = lineIntersect(A.line, B.line);
+        if (ip && hyp(ip[0]-v[0], ip[1]-v[1]) <= o.maxCorner) v = ip;
+      }
+    }
+    P.push(v);
+  }
+  const end = closed ? P[0] : V[m].slice();
+  const res = [];
+  for (let q = 0; q < s; q++){
+    const k = segs[q], r = ranges[k], a = P[q], b = q+1 < s ? P[q+1] : end;
+    if (r.t === 'L'){
+      if (hyp(b[0]-a[0], b[1]-a[1]) < 1e-6) continue;
+      res.push({t:'L', x1:a[0], y1:a[1], x2:b[0], y2:b[1]});
+    } else {
+      // oblouk přesně přes koncové vrcholy (navazuje na sousední úsečky bez mezery)
+      const c = r.c, dxv = b[0]-a[0], dyv = b[1]-a[1], dd = hyp(dxv, dyv);
+      let R = c.r, cx = c.cx, cy = c.cy;
+      if (dd > 1e-6){
+        if (dd/2 > R) R = dd/2;
+        const h = Math.sqrt(Math.max(0, R*R - dd*dd/4)), nx = -dyv/dd, ny = dxv/dd, mx = (a[0]+b[0])/2, my = (a[1]+b[1])/2;
+        const c1 = [mx + nx*h, my + ny*h], c2 = [mx - nx*h, my - ny*h];
+        const p = hyp(c1[0]-c.cx, c1[1]-c.cy) <= hyp(c2[0]-c.cx, c2[1]-c.cy) ? c1 : c2; cx = p[0]; cy = p[1];
+      }
+      const sa = Math.atan2(a[1]-cy, a[0]-cx), ea = Math.atan2(b[1]-cy, b[0]-cx), sg = r.sweep >= 0 ? 1 : -1;
+      let sw = r.sweep, best = Infinity;
+      for (const cand of [angDiff(ea, sa), angDiff(ea, sa) + TAU, angDiff(ea, sa) - TAU]){
+        if (cand*sg <= 0) continue; const dv = Math.abs(cand - r.sweep); if (dv < best){ best = dv; sw = cand; }
+      }
+      res.push({t:'A', cx, cy, r:R, sa, sw, p0:a, p1:b});
+    }
+  }
+  // ortogonální přichycení vrcholů
+  if (o.ortho){
+    const th = Math.tan(o.orthoDeg*Math.PI/180);
+    for (const e of res){
+      if (e.t !== 'L') continue;
+      const dx = e.x2-e.x1, dy = e.y2-e.y1;
+      if (Math.abs(dy) <= th*Math.abs(dx)) { const y = (e.y1+e.y2)/2; e.y1 = e.y2 = y; e.hs = 1; }
+      else if (Math.abs(dx) <= th*Math.abs(dy)) { const x = (e.x1+e.x2)/2; e.x1 = e.x2 = x; e.vs = 1; }
+    }
+    // sdílené vrcholy: vodorovná čára určí y, svislá určí x
+    for (let q = 0; q < res.length; q++){
+      const A = res[q], B = res[(q+1) % res.length];
+      if (q+1 === res.length && !closed) break;
+      if (A.t !== 'L' || B.t !== 'L') continue;
+      if (A.hs && B.vs){ B.y1 = A.y2; A.x2 = B.x1; }
+      else if (A.vs && B.hs){ B.x1 = A.x2; A.y2 = B.y1; }
+    }
+  }
+  return res;
+}
+function rasterVectorize(gray, w, h, o){
+  // gray: Uint8 (w*h) výřezu; o: {thr, invert, local, minComp, tol, spur, minChain, ortho, orthoDeg, ox, oy, fullH}
+  const thr = o.thr > 0 ? o.thr : otsuThreshold(gray);
+  const {img, W, H} = binarizePadded(gray, w, h, thr, !!o.invert, o.local ? 41 : 0);
+  let ink = 0; for (let i = 0; i < img.length; i++) ink += img[i];
+  if (o.minComp > 1) removeSmallComponents(img, W, H, o.minComp);
+  let inkClean = 0; for (let i = 0; i < img.length; i++) inkClean += img[i];
+  thinZS(img, W, H);
+  let sk = 0; for (let i = 0; i < img.length; i++) sk += img[i];
+  const thickness = sk ? inkClean/sk : 1;
+  const tol = Math.max(o.tol, 0.3*thickness);
+  const spur = Math.max(o.spur, 1.5*thickness + 2);
+  const tr = traceSkeleton(img, W, H, spur);
+  const chains = joinChains(tr);
+  const fo = {tol, tiny:Math.max(2.5*tol, 1.6*thickness), maxCorner:2.5*thickness + 3 + tol, ortho:o.ortho, orthoDeg:o.orthoDeg || 1.2};
+  const minChain = Math.max(o.minChain, 2*thickness);
+  const ents = [];
+  const X = x => o.ox + x - 0.5, Y = y => o.fullH - (o.oy + y - 0.5);
+  for (const ch of chains){
+    let len = 0; for (let i = 1; i < ch.pts.length; i++) len += hyp(ch.pts[i][0]-ch.pts[i-1][0], ch.pts[i][1]-ch.pts[i-1][1]);
+    if (len < minChain && !(ch.closed && len > 3*Math.PI*thickness)) continue;
+    const prims = fitChainToPrims(ch.pts, ch.closed, fo);
+    for (const p of prims){
+      if (p.t === 'L') ents.push({t:'L', x1:X(p.x1), y1:Y(p.y1), x2:X(p.x2), y2:Y(p.y2), fill:false});
+      else if (p.t === 'C') ents.push({t:'C', cx:X(p.cx), cy:Y(p.cy), r:p.r, fill:false});
+      else { const a = mkArc(X(p.cx), Y(p.cy), p.r, -p.sa, -p.sw); a.fill = false; ents.push(a); }
+    }
+  }
+  const merged = consolidateArcs(mergeCollinearLines(ents, Math.max(1.2*thickness + 1, 2.5), 0.06), tol, Math.max(3*tol, 2.5*thickness + 2));
+  merged.forEach((e, i) => { e.id = i; e.bb = entBBox(e); e.del = false; e.state = ''; });
+  return {ents:merged, thr, thickness, tol};
+}
+
+function mergeCollinearLines(ents, tol, angTol){ // spojí úsečky navazující v jedné přímce (např. ramena křížku rozdělená uzlem kostry)
+  const others = ents.filter(e => e.t !== 'L'); let L = ents.filter(e => e.t === 'L').map(e => ({x1:e.x1, y1:e.y1, x2:e.x2, y2:e.y2, fill:e.fill}));
+  const cell = Math.max(tol, 1), cosT = Math.cos(angTol);
+  for (let pass = 0; pass < 6; pass++){
+    let changed = false; const grid = new Map();
+    L.forEach((l, i) => { if (!l) return; for (const en of [0, 1]){ const x = en ? l.x2 : l.x1, y = en ? l.y2 : l.y1, k = Math.floor(x/cell) + ',' + Math.floor(y/cell); if (!grid.has(k)) grid.set(k, []); grid.get(k).push([i, en]); } });
+    for (let i = 0; i < L.length; i++){
+      for (const ea of [0, 1]){
+        const a = L[i]; if (!a) break;
+        const ax = ea ? a.x2 : a.x1, ay = ea ? a.y2 : a.y1, cx = Math.floor(ax/cell), cy = Math.floor(ay/cell); let done = false;
+        for (let dx = -1; dx <= 1 && !done; dx++) for (let dy = -1; dy <= 1 && !done; dy++){
+          const lst = grid.get((cx+dx) + ',' + (cy+dy)); if (!lst) continue;
+          for (const [j, eb] of lst){
+            const b = L[j]; if (j === i || !b) continue;
+            const bx = eb ? b.x2 : b.x1, by = eb ? b.y2 : b.y1; if (hyp(ax-bx, ay-by) > tol) continue;
+            const fax = ea ? a.x1 : a.x2, fay = ea ? a.y1 : a.y2, fbx = eb ? b.x1 : b.x2, fby = eb ? b.y1 : b.y2;
+            const u1x = fax-ax, u1y = fay-ay, u2x = fbx-bx, u2y = fby-by, l1 = hyp(u1x, u1y), l2 = hyp(u2x, u2y); if (l1 < 1e-9 || l2 < 1e-9) continue;
+            if ((u1x*u2x + u1y*u2y)/(l1*l2) > -cosT) continue;
+            const mx = fbx-fax, my = fby-fay, ml = hyp(mx, my); if (ml < 1e-9) continue;
+            if (Math.abs((ax-fax)*my - (ay-fay)*mx)/ml > tol*0.75) continue;
+            L[i] = {x1:fax, y1:fay, x2:fbx, y2:fby, fill:a.fill}; L[j] = null; changed = true; done = true; break;
+          }
+        }
+      }
+    }
+    if (!changed) break;
+  }
+  return others.concat(L.filter(Boolean).map(l => ({t:'L', x1:l.x1, y1:l.y1, x2:l.x2, y2:l.y2, fill:l.fill})));
+}
+function toGray(rgba, n){ const g = new Uint8Array(n); for (let i = 0, j = 0; i < n; i++, j += 4) g[i] = (rgba[j]*77 + rgba[j+1]*151 + rgba[j+2]*28) >> 8; return g; }
+
+/* ---- 8) Automatická kalibrace rastru z kót (slova z OCR + vektorizované čáry) ---- */
+function findRasterDims(ents, words, fullH, thick){
+  thick = Math.max(1, thick || 2);
+  const lines = [];
+  for (const e of ents) if (e.t === 'L'){ const dx = e.x2-e.x1, dy = e.y2-e.y1, L = hyp(dx, dy); if (L >= 15) lines.push({e, L, ux:dx/L, uy:dy/L}); }
+  const cand = [];
+  for (const wd of words){
+    const v = parseDimText(wd.text); if (!(v >= 3)) continue;
+    const cx = (wd.x0+wd.x1)/2, cy = fullH - (wd.y0+wd.y1)/2;
+    const tw = wd.vertical ? (wd.y1-wd.y0) : (wd.x1-wd.x0), th = wd.vertical ? (wd.x1-wd.x0) : (wd.y1-wd.y0);
+    const tux = wd.vertical ? 0 : 1, tuy = wd.vertical ? 1 : 0;
+    const bx0 = wd.x0 - 2*thick, bx1 = wd.x1 + 2*thick, by0 = fullH - wd.y1 - 2*thick, by1 = fullH - wd.y0 + 2*thick;
+    const inWord = l => { if (l.L > 1.8*Math.max(tw, th)) return false; const mx = (l.e.x1+l.e.x2)/2, my = (l.e.y1+l.e.y2)/2; return mx >= bx0 && mx <= bx1 && my >= by0 && my <= by1; };
+    // 1) kus rozměrové čáry rovnoběžný s textem, nejblíže jeho středu (čára může být přerušená textem)
+    let best = null;
+    for (const l of lines){
+      if (Math.abs(l.ux*tuy - l.uy*tux) > 0.05 || l.L < 20 || inWord(l)) continue;
+      const rx = cx - l.e.x1, ry = cy - l.e.y1, s = rx*l.ux + ry*l.uy, dp = Math.abs(rx*l.uy - ry*l.ux);
+      const gap = s < 0 ? -s : (s > l.L ? s - l.L : 0);
+      if (gap > 1.5*tw + 10 || dp > 2.2*th + 3*thick) continue;
+      const score = dp + 0.5*gap; if (!best || score < best.score) best = {l, dp, score};
+    }
+    if (!best) continue;
+    const a = best.l, ux = a.ux, uy = a.uy, P0x = a.e.x1, P0y = a.e.y1;
+    const sc = (cx - P0x)*ux + (cy - P0y)*uy;
+    // 2) vynášecí čáry: kolmice protínající osu rozměru; nejbližší z obou stran textu
+    let left = -Infinity, right = Infinity; const mg = 3*thick + 3;
+    for (const m of lines){
+      if (Math.abs(m.ux*ux + m.uy*uy) > 0.08 || m.L < Math.max(20, 3*thick) || inWord(m)) continue;
+      const c1 = (m.e.x1-P0x)*uy - (m.e.y1-P0y)*ux, c2 = (m.e.x2-P0x)*uy - (m.e.y2-P0y)*ux;
+      if (Math.min(c1, c2) - mg > 0 || Math.max(c1, c2) + mg < 0) continue;
+      const tm = ((m.e.x1+m.e.x2)/2 - P0x)*ux + ((m.e.y1+m.e.y2)/2 - P0y)*uy;
+      if (tm <= sc - 0.25*tw && tm > left) left = tm;
+      if (tm >= sc + 0.25*tw && tm < right) right = tm;
+    }
+    if (!isFinite(left) || !isFinite(right)) continue;
+    const dist = right - left; if (dist < 60) continue;
+    const tol = 6*thick + 12, lo = Math.min(0, a.L), hi = Math.max(0, a.L);
+    if (lo < left - tol || hi > right + tol) continue; // rozměrová čára nesmí přesahovat vynášecí čáry
+    cand.push({s:v/dist, w:dist, val:v, dim:{p0:[P0x + ux*left, P0y + uy*left], p1:[P0x + ux*right, P0y + uy*right], d:dist}, dp:best.dp});
+  }
+  // stejná vzdálenost vynášecích čar s různými hodnotami (řady souřadnicových kót) = nejednoznačné, vyřadit
+  const out = [];
+  for (const c of cand){
+    const same = cand.filter(o => Math.abs(o.dim.d - c.dim.d) <= 2.5 + 0.002*c.dim.d);
+    if (same.some(o => o.val !== c.val)) continue;
+    if (out.some(o => o.val === c.val && Math.abs(o.dim.d - c.dim.d) <= 2.5 + 0.002*c.dim.d)) continue;
+    out.push(c);
+  }
+  return out;
+}
+
+/* ---- 8) Přichycení rozměrů na hodnoty kót (střed tolerance) ---- */
+function textsToNums(texts){ // číselné texty (vodorovné / svislé) s obdélníkem + hodnoty průměrů (Ø)
+  const nums = [], dia = [];
+  for (const t of texts){
+    const str = String(t.str || ''); if (!str.trim()) continue;
+    const tr = t.transform; if (!tr) continue;
+    const enc = str.match(/\u0091([\u0013-\u001c\u000f\u0010\u0011]+)/); // Ø v kódování některých fontů AutoCADu
+    if (enc){ const dec = enc[1].replace(/[\u0013-\u001c]/g, ch => String.fromCharCode(ch.charCodeAt(0) + 29)).replace(/[\u000f\u0010\u0011]/g, '.'), pf = parseDimFull(dec); if (pf && pf.v > 0) dia.push({v:pf.v, off:pf.off}); continue; }
+    const m = str.match(/[Ø⌀∅øΦφ]\s*(\d[\d.,\s±+\-]*)/);
+    if (m){ const pf = parseDimFull(m[1].replace(/\s+$/, '')); if (pf && pf.v > 0) dia.push({v:pf.v, off:pf.off}); continue; }
+    const pf = parseDimFull(str); if (!pf) continue;
+    const g = itemGeom(t);
+    if (Math.abs(g.uy) > 0.05 && Math.abs(g.ux) > 0.05) continue;
+    const ex = tr[4] + g.ux*g.w, ey = tr[5] + g.uy*g.w, nx = -g.uy*g.fs*0.7, ny = g.ux*g.fs*0.7;
+    const xs = [tr[4], ex, tr[4] + nx, ex + nx], ys = [tr[5], ey, tr[5] + ny, ey + ny];
+    nums.push({v:pf.v + pf.off, x0:Math.min(...xs), x1:Math.max(...xs), y0:Math.min(...ys), y1:Math.max(...ys)});
+  }
+  return {nums, dia};
+}
+function levelCluster(vals, tol){
+  const a = vals.slice().sort((x, y) => x - y), out = []; let cur = null;
+  for (const v of a){
+    if (cur && v - cur.last <= tol){ cur.s += v; cur.n++; cur.last = v; }
+    else { cur = {s:v, n:1, last:v}; out.push(cur); }
+  }
+  return out.map(c => c.s/c.n);
+}
+function nearIdx(L, x){
+  const n = L.length; if (!n) return -1; if (n === 1) return 0;
+  let lo = 0, hi = n - 1;
+  if (x <= L[0]) return 0; if (x >= L[n-1]) return n - 1;
+  while (hi - lo > 1){ const m = (lo + hi) >> 1; if (L[m] < x) lo = m; else hi = m; }
+  return (x - L[lo]) <= (L[hi] - x) ? lo : hi;
+}
+function houghDatum(L, vals, k, tolMm, scales){ // souřadnicové kóty: datum (nula) + směr + měřítko, při kterých co nejvíc hodnot padne na hladiny
+  const n = L.length, tol = tolMm/k; if (n < 3 || vals.length < 3) return null;
+  let best = null;
+  for (let d = 0; d < n; d++) for (const dir of [1, -1]) for (const s of scales){
+    let cnt = 0, err = 0; const used = new Set();
+    for (const v of vals){
+      const x = L[d] + dir*v/(k*s), j = nearIdx(L, x);
+      if (j === d || used.has(j) || Math.abs(L[j] - x) > tol) continue;
+      used.add(j); cnt++; err += Math.abs(L[j] - x);
+    }
+    if (!best || cnt > best.cnt || (cnt === best.cnt && err < best.err)) best = {d, dir, s, cnt, err};
+  }
+  if (!best) return null;
+  // zjemnění měřítka metodou nejmenších čtverců a konečné spárování
+  let s = best.s;
+  for (let it = 0; it < 2; it++){
+    let sxy = 0, sxx = 0;
+    for (const v of vals){ const x = L[best.d] + best.dir*v/(k*s), j = nearIdx(L, x); if (j === best.d || Math.abs(L[j] - x) > tol) continue;
+      const pos = Math.abs(L[j] - L[best.d])*k; sxy += v*pos; sxx += pos*pos; }
+    if (sxx > 0){ const sn = sxx/sxy; if (isFinite(sn) && sn > 0.5 && sn < 2) s = s*sn; }
+  }
+  const pairs = [], used = new Set();
+  for (const v of vals){
+    const x = L[best.d] + best.dir*v/(k*s), j = nearIdx(L, x);
+    if (j === best.d || used.has(j) || Math.abs(L[j] - x) > tol) continue;
+    used.add(j); pairs.push({j, v});
+  }
+  return {d:best.d, dir:best.dir, s, cnt:pairs.length, pairs};
+}
+function solveShifts(L, cons){ // p_j - p_i = d (nejmenší čtverce), slabá vazba na původní polohu → nové polohy zúčastněných hladin
+  const idx = new Map(); let n = 0;
+  for (const c of cons) for (const q of [c.i, c.j]) if (!idx.has(q)) idx.set(q, n++);
+  const A = Array.from({length:n}, () => new Float64Array(n + 1)), lam = 1e-6;
+  for (const c of cons){ const a = idx.get(c.i), b = idx.get(c.j), w = c.w || 1;
+    A[a][a] += w; A[b][b] += w; A[a][b] -= w; A[b][a] -= w; A[b][n] += w*c.d; A[a][n] -= w*c.d; }
+  for (const [q, a] of idx){ A[a][a] += lam; A[a][n] += lam*L[q]; }
+  for (let c = 0; c < n; c++){
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+    if (Math.abs(A[p][c]) < 1e-12) return null;
+    [A[c], A[p]] = [A[p], A[c]];
+    for (let r = 0; r < n; r++){ if (r === c) continue; const f = A[r][c]/A[c][c]; if (!f) continue; for (let q = c; q <= n; q++) A[r][q] -= f*A[c][q]; }
+  }
+  const out = new Map(); for (const [q, a] of idx) out.set(q, A[a][n]/A[a][a]);
+  return out;
+}
+function makeMap(L, newPos){ // po částech lineární monotónní zobrazení souřadnice (kotvy = zúčastněné hladiny)
+  const an = Array.from(newPos.keys()).sort((a, b) => L[a] - L[b]);
+  if (!an.length) return null;
+  const xo = an.map(i => L[i]), xn = an.map(i => newPos.get(i));
+  for (let i = 1; i < xo.length; i++) if (!(xn[i] - xn[i-1] > 1e-9*(1 + Math.abs(xn[i])))) return null; // zachovat pořadí
+  const f = x => {
+    if (x <= xo[0]) return x + (xn[0] - xo[0]);
+    const m = xo.length - 1; if (x >= xo[m]) return x + (xn[m] - xo[m]);
+    let lo = 0, hi = m; while (hi - lo > 1){ const mid = (lo + hi) >> 1; if (xo[mid] <= x) lo = mid; else hi = mid; }
+    const t = (x - xo[lo])/(xo[hi] - xo[lo]); return xn[lo] + t*(xn[hi] - xn[lo]);
+  };
+  f.maxShift = Math.max(...xo.map((v, i) => Math.abs(xn[i] - v)));
+  return f;
+}
+function remapEnt(e, fx, fy){
+  if (e.t === 'L'){ e.x1 = fx(e.x1); e.y1 = fy(e.y1); e.x2 = fx(e.x2); e.y2 = fy(e.y2); }
+  else if (e.t === 'C'){ e.cx = fx(e.cx); e.cy = fy(e.cy); }
+  else if (e.t === 'A'){
+    const p1x = e.cx + e.r*Math.cos(e.sa), p1y = e.cy + e.r*Math.sin(e.sa), p2x = e.cx + e.r*Math.cos(e.sa + e.sw), p2y = e.cy + e.r*Math.sin(e.sa + e.sw);
+    const q1x = fx(p1x), q1y = fy(p1y), q2x = fx(p2x), q2y = fy(p2y), dx = q2x - q1x, dy = q2y - q1y, m = hyp(dx, dy);
+    if (m < 1e-9) return;
+    const half = m/2, rr = Math.max(e.r, half), h = Math.sqrt(Math.max(0, rr*rr - half*half)), mx = (q1x + q2x)/2, my = (q1y + q2y)/2, nx = -dy/m, ny = dx/m;
+    let best = null;
+    for (const sg of [1, -1]){
+      const cx = mx + sg*nx*h, cy = my + sg*ny*h, sa = Math.atan2(q1y - cy, q1x - cx), sw = norm2pi(Math.atan2(q2y - cy, q2x - cx) - sa);
+      const dd = Math.abs(sw - e.sw); if (!best || dd < best.dd) best = {cx, cy, sa:norm2pi(sa), sw, dd};
+    }
+    e.cx = best.cx; e.cy = best.cy; e.r = rr; e.sa = best.sa; e.sw = best.sw;
+  }
+}
+function saveOrig(e){
+  if (e._o) return;
+  e._o = e.t === 'L' ? {x1:e.x1, y1:e.y1, x2:e.x2, y2:e.y2} : e.t === 'C' ? {cx:e.cx, cy:e.cy, r:e.r} : {cx:e.cx, cy:e.cy, r:e.r, sa:e.sa, sw:e.sw};
+}
+function restoreSnapped(ents){ for (const e of ents) if (e._o){ Object.assign(e, e._o); delete e._o; e.bb = entBBox(e); } }
+
+/* sp: {dims:[{val, off, dim:{p0,p1}}], nums:[{v,x0,x1,y0,y1}], dia:[{v,off}], raster:bool, thick:px}
+   ents: prvky výřezu (upravují se na místě, původní hodnoty v e._o), k: mm na jednotku, crop: {x0,y0,x1,y1} */
+function snapEntities(ents, sp, k, crop){
+  const rep = {pairs:0, ords:{x:0, y:0}, dia:0, maxShiftMm:0, notes:[]};
+  if (!crop || !ents.length) return rep;
+  const ras = !!sp.raster, thick = sp.thick || 1;
+  const tolLevel = ras ? Math.max(1.5, 0.9*thick + 1) : Math.max(0.03/k, 1e-6);
+  const matchTol = ras ? 2.5*thick + 3 : Math.max(0.35/k, 1e-6);
+  const tolMm = ras ? Math.max(0.45, 1.8*k) : 0.15;
+  const cw = crop.x1 - crop.x0, ch = crop.y1 - crop.y0, margin = Math.max(40/k, 0.2*Math.max(cw, ch));
+  const inMargin = (x, y) => x >= crop.x0 - margin && x <= crop.x1 + margin && y >= crop.y0 - margin && y <= crop.y1 + margin;
+  // 1) hladiny (souřadnice vrcholů, středů)
+  const pts = {x:[], y:[]};
+  const add = (x, y) => { pts.x.push(x); pts.y.push(y); };
+  for (const e of ents){
+    if (e.t === 'L'){ add(e.x1, e.y1); add(e.x2, e.y2); }
+    else if (e.t === 'C') add(e.cx, e.cy);
+    else if (e.t === 'A'){ add(e.cx, e.cy); add(e.cx + e.r*Math.cos(e.sa), e.cy + e.r*Math.sin(e.sa)); add(e.cx + e.r*Math.cos(e.sa + e.sw), e.cy + e.r*Math.sin(e.sa + e.sw)); }
+  }
+  const L = {x:levelCluster(pts.x, tolLevel), y:levelCluster(pts.y, tolLevel)};
+  const ext = {x:cw*k, y:ch*k}, cons = {x:[], y:[]}, seen = new Set();
+  const addCons = (ax, i, j, d, w) => { if (i === j) return; const key = ax + i + '|' + j + '|' + d.toFixed(4); if (seen.has(key)) return; seen.add(key); cons[ax].push({i, j, d, w:w || 1}); };
+  // 2) kóty se šipkami: oba konce rozměru ↔ hladiny
+  for (const D of (sp.dims || [])){
+    const p0 = D.dim.p0, p1 = D.dim.p1, ex = D.dim.ex !== undefined ? D.dim.ex : (p1[0] - p0[0]), ey = D.dim.ey !== undefined ? D.dim.ey : (p1[1] - p0[1]), nn = hyp(ex, ey) || 1;
+    let ax = null; if (Math.abs(ey/nn) < 0.02) ax = 'x'; else if (Math.abs(ex/nn) < 0.02) ax = 'y'; else continue;
+    const o = ax === 'x' ? 0 : 1, a = p0[o], b = p1[o], lo = ax === 'x' ? crop.x0 : crop.y0, hi = ax === 'x' ? crop.x1 : crop.y1;
+    if (Math.min(a, b) < lo - matchTol || Math.max(a, b) > hi + matchTol) continue;
+    if (!inMargin((p0[0] + p1[0])/2, (p0[1] + p1[1])/2)) continue;
+    const ia = nearIdx(L[ax], a), ib = nearIdx(L[ax], b);
+    if (ia < 0 || ib < 0 || ia === ib || Math.abs(L[ax][ia] - a) > matchTol || Math.abs(L[ax][ib] - b) > matchTol) continue;
+    const target = (D.val + (D.off || 0))/k, meas = Math.abs(L[ax][ib] - L[ax][ia]);
+    if (Math.abs(meas/target - 1) > 0.08) continue;
+    const i = L[ax][ia] < L[ax][ib] ? ia : ib, j = i === ia ? ib : ia;
+    addCons(ax, i, j, target, 1); rep.pairs++;
+  }
+  // 3) souřadnicové kóty (řada čísel od společné nuly)
+  const near = (sp.nums || []).filter(t => inMargin((t.x0 + t.x1)/2, (t.y0 + t.y1)/2));
+  for (const ax of ['x', 'y']){
+    const seenV = new Set(), vals = [];
+    for (const t of near){ if (!(t.v > 0) || t.v > ext[ax]*(ras ? 1.08 : 1.002)) continue; const kk = Math.round(t.v*100); if (seenV.has(kk)) continue; seenV.add(kk); vals.push(t.v); }
+    const n = L[ax].length; if (n < 4 || vals.length < 4) continue;
+    const rangeMm = Math.max(1e-6, (L[ax][n-1] - L[ax][0])*k);
+    const scales = []; if (ras){ const st = Math.max(0.0004, 0.4*tolMm/Math.max(...vals)); for (let s = 0.94; s <= 1.06 + 1e-9; s += st) scales.push(s); } else scales.push(1);
+    const h = houghDatum(L[ax], vals, k, tolMm, scales); if (!h) continue;
+    const p = Math.min(0.9, 2*tolMm*n/rangeMm), m = vals.length, need = Math.max(4, Math.ceil(m*p + 5*Math.sqrt(m*p*(1 - p)) + 1));
+    rep.dbg = (rep.dbg || []).concat([{ax, cnt:h.cnt, m, need, p:+p.toFixed(3), d:L[ax][h.d], dir:h.dir, s:h.s, vals:vals.join(' '), matched:h.pairs.map(q => q.v).join(' ')}]);
+    if (h.cnt < need) continue;
+    for (const pr of h.pairs){ addCons(ax, h.d, pr.j, h.dir*pr.v/k, 1); rep.ords[ax]++; }
+    rep.notes.push('souřadnicové kóty ' + ax.toUpperCase() + ': ' + h.cnt + ' z ' + m + ' hodnot');
+  }
+  // 4) řešení a zobrazení souřadnic
+  const maps = {};
+  for (const ax of ['x', 'y']){
+    if (!cons[ax].length) continue;
+    const sol = solveShifts(L[ax], cons[ax]); if (!sol){ rep.notes.push('osa ' + ax.toUpperCase() + ': soustava kót nejde vyřešit'); continue; }
+    const f = makeMap(L[ax], sol);
+    if (!f){ rep.notes.push('osa ' + ax.toUpperCase() + ': kóty si odporují (pořadí hran by se změnilo), vynecháno'); continue; }
+    if (f.maxShift*k > 0.15*ext[ax] && f.maxShift*k > 5){ rep.notes.push('osa ' + ax.toUpperCase() + ': posun je neúměrně velký, vynecháno'); continue; }
+    maps[ax] = f; rep.maxShiftMm = Math.max(rep.maxShiftMm, f.maxShift*k);
+  }
+  const fx = maps.x || (v => v), fy = maps.y || (v => v);
+  if (maps.x || maps.y) for (const e of ents){ saveOrig(e); remapEnt(e, fx, fy); }
+  // 5) průměry otvorů podle kót Ø
+  const dia = sp.dia || [];
+  if (dia.length && !ras){
+    for (const e of ents){ if (e.t !== 'C') continue;
+      const dm = 2*e.r*k; let best = null;
+      for (const q of dia){ const nom = q.v + (q.off || 0), rel = Math.abs(nom/dm - 1); if (rel <= 0.1 && (!best || rel < best.rel)) best = {nom, rel}; }
+      if (best && best.rel > 1e-6){ saveOrig(e); e.r = best.nom/2/k; rep.dia++; }
+    }
+  }
+  if (rep.dia || maps.x || maps.y) for (const e of ents) if (e._o) e.bb = entBBox(e);
+  return rep;
+}
+/*CORE-END*/
+</script>
+
+<script>
+/* ===================== UI ===================== */
+'use strict';
+const $ = id => document.getElementById(id);
+const S = {
+  kind:'pdf', doc:null, page:null, pageNum:1, fileName:'', vt:[1,0,0,-1,0,0], vw:0, vh:0, under:null, src:null,
+  ents:[], snap:[], crop:null, mmPerPt:25.4/72, calSource:'', model:null, tech:'punch',
+  mode:'pan', zoom:1, panX:0, panY:0, drag:null, hover:null, snapHit:null, undo:[], mpts:[], cal:null,
+  auto:null, autoDims:null, rinfo:null, spaceDown:false, busy:false, texts:[], dimData:null
+};
+const MODE_HINT = {
+  pan:'Posun: tažení myši. Kolečko přibližuje. Pravé/prostřední tlačítko posouvá v každém režimu.',
+  select:'Výřez dílce: tažením nakreslete obdélník kolem dílce. Do výřezu se berou jen čáry, které v něm leží celé.',
+  erase:'Mazání: klik na čáru ji smaže, tažení obdélníku smaže vše uvnitř. Ctrl+Z vrací.',
+  measure:'Měření: klikněte na dva body (přichytávají se ke koncům čar a středům kružnic).',
+  circle:'Klikněte na kružnici nebo oblouk, jehož skutečný průměr (poloměr) znáte, např. otvor ⌀ 7.'
+};
+function setStatus(t, kind){ const s = $('status'); s.textContent = t; s.style.color = kind === 'bad' ? 'var(--bad)' : kind === 'ok' ? 'var(--ok)' : 'var(--ink)'; }
+const unitName = () => S.kind === 'img' ? 'px' : 'pt';
+function fmt(v, d){ return v.toFixed(d === undefined ? 2 : d).replace('.', ','); }
+
+/* ---------- souřadnice ---------- */
+function p2s(x, y){ const v = S.vt, px = v[0]*x+v[2]*y+v[4], py = v[1]*x+v[3]*y+v[5]; return [px*S.zoom+S.panX, py*S.zoom+S.panY]; }
+function s2p(sx, sy){
+  const px = (sx-S.panX)/S.zoom, py = (sy-S.panY)/S.zoom, [a,b,c,d,e,f] = S.vt, det = a*d-b*c;
+  return [(d*(px-e)-c*(py-f))/det, (-b*(px-e)+a*(py-f))/det];
+}
+function pxPerUnit(){ return S.zoom*Math.hypot(S.vt[0], S.vt[1]); }
+
+/* ---------- externí knihovny ---------- */
+function loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error(src)); document.head.appendChild(s); }); }
+async function initPdfJs(){
+  if (window.pdfjsLib) return true;
+  const V = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  for (const [s, w] of [['pdf.min.js','pdf.worker.min.js'], [V+'pdf.min.js', V+'pdf.worker.min.js']]){
+    try { await loadScript(s); if (window.pdfjsLib){ pdfjsLib.GlobalWorkerOptions.workerSrc = w; return true; } } catch(e){}
+  }
+  return false;
+}
+async function initTesseract(){
+  if (window.Tesseract) return true;
+  for (const s of ['tesseract.min.js', 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js']){
+    try { await loadScript(s); if (window.Tesseract) return true; } catch(e){}
+  }
+  return false;
+}
+
+/* ---------- načtení souboru ---------- */
+async function handleFile(file){
+  if (!file) return;
+  const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  try {
+    if (isPdf){
+      setStatus('Načítám PDF…');
+      if (!(await initPdfJs())){ setStatus('Nepodařilo se načíst knihovnu pdf.js (chybí internet?). Uložte pdf.min.js a pdf.worker.min.js vedle tohoto souboru.', 'bad'); return; }
+      const buf = new Uint8Array(await file.arrayBuffer());
+      S.doc = await pdfjsLib.getDocument({data:buf}).promise;
+      S.fileName = file.name; $('fname').textContent = file.name;
+      await loadPage(1);
+    } else {
+      setStatus('Načítám obrázek…');
+      await loadImageFile(file);
+    }
+  } catch(err){ console.error(err); setStatus('Chyba při čtení souboru: ' + err.message, 'bad'); }
+}
+function resetDoc(){
+  S.crop = null; S.undo = []; S.mpts = []; S.cal = null; S.hover = null; S.auto = null; S.autoDims = null; S.dimData = null; S.rinfo = null; S.ents = []; S.snap = [];
+  $('mpanel').classList.remove('on'); $('autoBox').classList.add('hidden'); $('autoNote').textContent = '';
+  S.calSource = '';
+}
+function buildSnap(){
+  S.snap = [];
+  for (const e of S.ents){
+    if (e.t === 'L'){ S.snap.push([e.x1, e.y1], [e.x2, e.y2]); }
+    else if (e.t === 'A'){ S.snap.push([e.cx+e.r*Math.cos(e.sa), e.cy+e.r*Math.sin(e.sa)], [e.cx+e.r*Math.cos(e.sa+e.sw), e.cy+e.r*Math.sin(e.sa+e.sw)], [e.cx, e.cy]); }
+    else { S.snap.push([e.cx, e.cy], [e.cx+e.r, e.cy], [e.cx-e.r, e.cy], [e.cx, e.cy+e.r], [e.cx, e.cy-e.r]); }
+  }
+}
+function setKind(kind){
+  S.kind = kind;
+  const img = kind === 'img';
+  $('secRaster').classList.toggle('hidden', !img);
+  $('rowFilled').classList.toggle('hidden', img);
+  $('rowRatio').classList.toggle('hidden', img);
+  $('rowJoinMm').classList.toggle('hidden', img);
+  $('rowJoinPx').classList.toggle('hidden', !img);
+  $('btnAuto').disabled = false;
+  $('selFmt').value = img ? 'poly' : 'lines';
+}
+
+/* ---------- vektorové PDF ---------- */
+async function loadPage(n){
+  S.pageNum = n; S.kind = 'pdf';
+  resetDoc();
+  const page = await S.doc.getPage(n); S.page = page;
+  const vp = page.getViewport({scale:1});
+  S.vt = vp.transform; S.vw = vp.width; S.vh = vp.height; S.src = null;
+  $('pgCur').textContent = n; $('pgTot').textContent = S.doc.numPages;
+  $('pager').classList.toggle('on', S.doc.numPages > 1);
+  setKind('pdf'); S.mmPerPt = 25.4/72;
+  setStatus('Čtu vektory…');
+  const opList = await page.getOperatorList();
+  let texts = []; try { texts = (await page.getTextContent()).items || []; } catch(e){}
+  const r = loadVector(opList, pdfjsLib.OPS, texts);
+  S.ents = r.ents; buildSnap(); S.dimData = {dims:r.dims || [], nums:r.nums || [], dia:r.dia || [], raster:false, thick:1};
+  $('empty').style.display = 'none';
+  const hasVectors = S.ents.length >= 5;
+  if (!hasVectors){ await scannedPdfToRaster(page, vp); return; }
+  S.under = null;
+  try {
+    const R = Math.min(3, 4096/Math.max(vp.width, vp.height)), v2 = page.getViewport({scale:R}), c = document.createElement('canvas');
+    c.width = Math.floor(v2.width); c.height = Math.floor(v2.height);
+    await page.render({canvasContext:c.getContext('2d'), viewport:v2}).promise; S.under = c;
+  } catch(e){ console.warn('Podklad se nevykreslil', e); }
+  fitView(0, 0, 0, 0, true);
+  $('kindInfo').textContent = 'Vektorové PDF: geometrie se čte přímo, bez převodu na pixely.';
+  if (r.auto) applyAutoResult(r.auto, true); else $('autoNote').textContent = 'Kóty v PDF nenalezeny';
+  rebuild();
+}
+async function scannedPdfToRaster(page, vp){
+  setStatus('PDF neobsahuje vektory, zpracovávám jako obrázek…');
+  const R = Math.min(5, 5000/Math.max(vp.width, vp.height)), v2 = page.getViewport({scale:R}), c = document.createElement('canvas');
+  c.width = Math.floor(v2.width); c.height = Math.floor(v2.height);
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  await page.render({canvasContext:x, viewport:v2}).promise;
+  enterRaster(c, 25.4/72/R);
+}
+
+/* ---------- obrázek / sken ---------- */
+async function loadImageFile(file){
+  let bmp;
+  try { bmp = await createImageBitmap(file); }
+  catch(e){
+    bmp = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = () => rej(new Error('Formát obrázku nelze v prohlížeči načíst (TIFF? uložte jako JPG/PNG).')); im.src = URL.createObjectURL(file); });
+  }
+  let w = bmp.width, h = bmp.height; const maxSide = 7000, f = Math.min(1, maxSide/Math.max(w, h));
+  w = Math.round(w*f); h = Math.round(h*f);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, w, h); x.drawImage(bmp, 0, 0, w, h);
+  S.fileName = file.name; $('fname').textContent = file.name; S.doc = null; $('pager').classList.remove('on');
+  enterRaster(c, 1);
+}
+function enterRaster(canvas, mmPerPx){
+  resetDoc(); setKind('img');
+  S.page = true; S.src = canvas; S.under = canvas; S.vw = canvas.width; S.vh = canvas.height;
+  S.vt = [1, 0, 0, -1, 0, canvas.height]; S.mmPerPt = mmPerPx;
+  $('empty').style.display = 'none'; $('rngUnder').value = 85;
+  $('kindInfo').textContent = 'Obrázek: čáry se dohledávají z pixelů (přesnost cca ±1 px). Nejdřív nastavte měřítko.';
+  fitView(0, 0, 0, 0, true);
+  if (S.vw*S.vh <= 6e6) runRaster(); else { rebuild(); setStatus('Velký obrázek: vyberte „Výřez dílce“, vektorizace proběhne jen v něm.'); }
+}
+let rasterTimer = null;
+function scheduleRaster(){ clearTimeout(rasterTimer); rasterTimer = setTimeout(runRaster, 350); }
+function runRaster(){
+  if (S.kind !== 'img' || !S.src) return;
+  clearTimeout(rasterTimer);
+  let x0 = 0, x1 = S.vw, y0 = 0, y1 = S.vh;
+  if (S.crop){ x0 = Math.floor(S.crop.x0); x1 = Math.ceil(S.crop.x1); y0 = Math.floor(S.vh - S.crop.y1); y1 = Math.ceil(S.vh - S.crop.y0); }
+  x0 = Math.max(0, x0); y0 = Math.max(0, y0); x1 = Math.min(S.vw, x1); y1 = Math.min(S.vh, y1);
+  const rw = x1 - x0, rh = y1 - y0;
+  if (rw < 12 || rh < 12){ setStatus('Výřez je příliš malý.', 'bad'); return; }
+  if (!S.crop && S.vw*S.vh > 12e6){ setStatus('Velký obrázek: nejdřív vyberte „Výřez dílce“.', 'bad'); return; }
+  setStatus('Hledám čáry…');
+  setTimeout(() => {
+    try {
+      const id = S.src.getContext('2d').getImageData(x0, y0, rw, rh), gray = toGray(id.data, rw*rh);
+      const res = rasterVectorize(gray, rw, rh, rasterOpts(x0, y0));
+      S.ents = res.ents; S.rinfo = res; S.undo = []; buildSnap();
+      $('rInfo').textContent = 'čára ≈ ' + res.thickness.toFixed(1) + ' px, práh ' + res.thr;
+      rebuild();
+    } catch(err){ console.error(err); setStatus('Chyba při vektorizaci: ' + err.message, 'bad'); }
+  }, 20);
+}
+function rasterOpts(ox, oy){
+  return {thr:parseInt($('rThr').value) || 0, invert:$('rInvert').checked, local:$('rLocal').checked,
+    minComp:Math.max(0, parseFloat($('rComp').value) || 0), tol:Math.max(0.5, parseFloat($('rTol').value) || 1.6),
+    spur:8, minChain:6, ortho:$('rOrtho').checked, orthoDeg:1.2, ox:ox, oy:oy, fullH:S.vh};
+}
+document.querySelectorAll('.rp').forEach(el => el.addEventListener('input', scheduleRaster));
+$('btnRaster').onclick = runRaster;
+
+/* ---------- strany ---------- */
+$('pgPrev').onclick = () => { if (S.doc && S.pageNum > 1) loadPage(S.pageNum-1); };
+$('pgNext').onclick = () => { if (S.doc && S.pageNum < S.doc.numPages) loadPage(S.pageNum+1); };
+
+/* ---------- pohled ---------- */
+function fitView(x0, y0, x1, y1, whole){
+  const vp = $('vp'), W = vp.clientWidth, H = vp.clientHeight;
+  let a, b;
+  if (whole){ a = [0, 0]; b = [S.vw, S.vh]; }
+  else { const p = [[x0,y0],[x1,y0],[x0,y1],[x1,y1]].map(q => { const v = S.vt; return [v[0]*q[0]+v[2]*q[1]+v[4], v[1]*q[0]+v[3]*q[1]+v[5]]; });
+    a = [Math.min(...p.map(q=>q[0])), Math.min(...p.map(q=>q[1]))]; b = [Math.max(...p.map(q=>q[0])), Math.max(...p.map(q=>q[1]))]; }
+  const w = Math.max(1, b[0]-a[0]), h = Math.max(1, b[1]-a[1]);
+  S.zoom = Math.max(0.01, Math.min((W-60)/w, (H-60)/h, 200));
+  S.panX = (W - w*S.zoom)/2 - a[0]*S.zoom; S.panY = (H - h*S.zoom)/2 - a[1]*S.zoom;
+  draw();
+}
+function zoomAt(sx, sy, fac){
+  const nz = Math.max(0.01, Math.min(200, S.zoom*fac)), r = nz/S.zoom;
+  S.panX = sx - (sx-S.panX)*r; S.panY = sy - (sy-S.panY)*r; S.zoom = nz; draw();
+}
+$('zIn').onclick = () => zoomAt($('vp').clientWidth/2, $('vp').clientHeight/2, 1.3);
+$('zOut').onclick = () => zoomAt($('vp').clientWidth/2, $('vp').clientHeight/2, 1/1.3);
+$('zFit').onclick = () => S.page && fitView(0, 0, 0, 0, true);
+$('zCrop').onclick = () => { if (S.crop) fitView(S.crop.x0, S.crop.y0, S.crop.x1, S.crop.y1); };
+
+/* ---------- model / parametry ---------- */
+function getOptions(){
+  const img = S.kind === 'img', k = S.mmPerPt, tech = S.tech;
+  const joinPx = Math.max(0.5, parseFloat($('numJoinPx').value) || 3);
+  return {
+    mmPerPt:k, joinTolMm: img ? joinPx*k : Math.max(0.001, parseFloat($('numJoin').value) || 0.05),
+    minLenMm:Math.max(0, parseFloat($('numMin').value) || 0),
+    skipFilled:$('chkFilled').checked, dashMode:$('selDash').value,
+    cross: tech === 'punch' || $('chkCrossRm').checked, crossRemove:$('chkCrossRm').checked,
+    crossMaxMm:Math.max(1, parseFloat($('numCrossMax').value) || 25),
+    centers:$('chkCenters').checked, punch:tech === 'punch',
+    pierceD:Math.max(0, parseFloat($('numPierce').value) || 0.1),
+    polyMode:$('selFmt').value === 'poly', origin:$('chkOrigin').checked, crop:S.crop,
+    dashSlack: img ? Math.max(2, (S.rinfo ? S.rinfo.tol : 2)*1.5) : 0.05,
+    snap: (S.dimData && $('chkSnap').checked) ? Object.assign({on:true}, S.dimData) : null
+  };
+}
+let rebuildTimer = null;
+function scheduleRebuild(){ clearTimeout(rebuildTimer); rebuildTimer = setTimeout(rebuild, 70); }
+function rebuild(){
+  if (!S.page) return;
+  S.model = buildModel(S.ents, getOptions());
+  updatePanel(); draw();
+}
+function updatePanel(){
+  const M = S.model, st = M.stats, k = S.mmPerPt, o = getOptions(), img = S.kind === 'img';
+  $('scaleInfo').textContent = '1 ' + unitName() + ' = ' + fmt(k, 4) + ' mm';
+  if (!img) $('ratio').value = +(k/(25.4/72)).toFixed(4);
+  const cb = $('calBadge'); cb.textContent = S.calSource ? 'kalibrováno ' + S.calSource : 'nekalibrováno'; cb.className = 'badge ' + (S.calSource ? 'ok' : 'warn');
+  $('btnUndo').disabled = !S.undo.length; $('btnClrCrop').disabled = !S.crop; $('zCrop').disabled = !S.crop;
+  $('btnRestore').disabled = !S.ents.some(e => e.del) && !S.crop;
+  $('sizeOut').textContent = M.bbox ? fmt(st.wMm) + ' × ' + fmt(st.hMm) + ' mm' : '– × – mm';
+  const rows = [['Úsečky', st.lines], ['Oblouky', st.arcs], ['Kružnice', st.circles], ['Spojené kontury (POLYLINE)', st.polys],
+    ['Uzavřené kontury', st.closed], ['Otevřené konce', st.openEnds],
+    [S.tech === 'punch' ? 'Kruhy ⌀ ' + fmt(o.pierceD) + ' mm (TruPunch)' : 'Nalezené křížky (bez kruhu)', st.pierce], ['Čárkované čáry', st.dash], ['Zahozené duplicity', st.dups]];
+  $('statsOut').innerHTML = rows.map(r => '<div>' + r[0] + '</div><div>' + r[1] + '</div>').join('');
+  const w = [];
+  if (!S.crop) w.push(['warn', 'Není vybraný výřez – do DXF půjde celý výkres včetně rámečku a kót. Použijte „Výřez dílce“.']);
+  if (!S.calSource) w.push(['warn', img ? 'Obrázek nemá měřítko, rozměry jsou zatím v pixelech. Použijte „Automaticky podle kót“ nebo kalibraci ručně.' : 'Měřítko není ověřené. Rozměr platí jen pro výkres tištěný 1:1; použijte „Automaticky podle kót“ nebo kalibraci ručně.']);
+  if (st.openEnds > 0) w.push(['bad', 'Kontura má ' + st.openEnds + ' otevřených konců (mezera nebo přesah). Laser takovou kontura neřeže – zvyšte toleranci spojení nebo smažte přebytečné čáry.']);
+  if (S.tech === 'punch' && !st.pierce && st.total) w.push(['warn', 'TruPunch: nenalezen žádný křížek, kruh ⌀ ' + fmt(o.pierceD) + ' se nevložil. Křížek = dvě kolmé čáry se společným středem, kratší než ' + fmt(o.crossMaxMm, 0) + ' mm.']);
+  if (!st.total) w.push(['bad', 'Nic k exportu – vyberte výřez s dílcem.']);
+  const sb = $('snapBox'), sn = M.snap;
+  if (!$('chkSnap').checked) sb.classList.add('hidden');
+  else {
+    let t = '';
+    if (!S.dimData || (!S.dimData.dims.length && !S.dimData.nums.length)) t = img ? 'Kóty zatím nejsou načtené – spusťte „Automaticky podle kót“, pak se rozměry přichytí.' : 'V PDF nejsou kóty k použití.';
+    else if (!S.crop) t = 'Přichycení proběhne po výběru výřezu dílce.';
+    else if (sn && sn.err) t = 'Přichycení selhalo: ' + sn.err;
+    else if (sn && (sn.pairs || sn.ords.x || sn.ords.y || sn.dia)){
+      t = 'Přichyceno na kóty: ' + (sn.pairs ? sn.pairs + ' rozměrových' : '') + (sn.pairs && (sn.ords.x + sn.ords.y) ? ', ' : '') + (sn.ords.x + sn.ords.y ? (sn.ords.x + sn.ords.y) + ' souřadnicových' : '') + (sn.dia ? ' · ' + sn.dia + '× průměr otvoru' : '') + '. Největší posun ' + fmt(sn.maxShiftMm, 2) + ' mm.' + (sn.notes && sn.notes.length ? ' (' + sn.notes.join('; ') + ')' : '');
+    } else t = 'V tomto výřezu se nenašla žádná kóta, kterou by šlo spárovat s hranami – rozměry zůstávají podle měřítka.' + (sn && sn.notes && sn.notes.length ? ' (' + sn.notes.join('; ') + ')' : '');
+    sb.textContent = t; sb.classList.remove('hidden');
+  }
+  $('warnOut').innerHTML = w.map(x => '<div class="warnbox ' + (x[0] === 'bad' ? 'bad' : '') + '">' + x[1] + '</div>').join('');
+  const can = st.total > 0 || (S.tech === 'punch' && st.pierce > 0);
+  $('btnExport').disabled = !can; $('btnExportTop').disabled = !can;
+  setStatus(S.crop ? 'Výřez: ' + st.total + ' prvků' + (st.openEnds ? ' · otevřené konce: ' + st.openEnds : ' · kontura je uzavřená') : 'Celý výkres: ' + S.ents.length + ' prvků', st.openEnds ? 'bad' : 'ok');
+}
+document.querySelectorAll('.opt').forEach(el => el.addEventListener('input', scheduleRebuild));
+$('ratio').addEventListener('change', () => {
+  const v = parseFloat($('ratio').value); if (!(v > 0) || S.kind !== 'pdf') return;
+  S.mmPerPt = v*25.4/72; S.calSource = 'ručně'; S.autoDims = null; rebuild();
+});
+function setTech(t){
+  S.tech = t;
+  $('techPunch').classList.toggle('on', t === 'punch'); $('techFiber').classList.toggle('on', t === 'fiber');
+  $('punchOpts').classList.toggle('hidden', t !== 'punch'); $('fiberNote').classList.toggle('hidden', t === 'punch');
+  rebuild();
+}
+$('techPunch').onclick = () => setTech('punch'); $('techFiber').onclick = () => setTech('fiber');
+
+/* ---------- kreslení ---------- */
+const cv = $('cv'), ctx = cv.getContext('2d');
+let rafId = 0;
+function draw(){ if (!rafId) rafId = requestAnimationFrame(() => { rafId = 0; render(); }); }
+function pathEnt(e){
+  if (e.t === 'L'){ const a = p2s(e.x1, e.y1), b = p2s(e.x2, e.y2); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); return; }
+  const sw = e.t === 'C' ? TAU : e.sw, sa = e.t === 'C' ? 0 : e.sa;
+  const n = Math.max(8, Math.min(720, Math.ceil(sw*e.r*pxPerUnit()/5)));
+  for (let i = 0; i <= n; i++){ const an = sa + sw*i/n, p = p2s(e.cx+e.r*Math.cos(an), e.cy+e.r*Math.sin(an)); i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1]); }
+}
+function render(){
+  const vp = $('vp'), dpr = window.devicePixelRatio || 1, W = vp.clientWidth, H = vp.clientHeight;
+  if (cv.width !== Math.round(W*dpr) || cv.height !== Math.round(H*dpr)){ cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr); }
+  ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0, 0, W, H);
+  $('zlvl').textContent = Math.round(S.zoom*100) + ' %';
+  if (!S.page) return;
+  ctx.fillStyle = '#fff'; ctx.fillRect(S.panX, S.panY, S.vw*S.zoom, S.vh*S.zoom);
+  if (S.under){ ctx.globalAlpha = $('rngUnder').value/100; ctx.drawImage(S.under, S.panX, S.panY, S.vw*S.zoom, S.vh*S.zoom); ctx.globalAlpha = 1; }
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const groups = {cut:[], dash:[], cross:[], hot:[]};
+  for (const e of S.ents){ if (S.hover && S.hover === e) groups.hot.push(e); else if (groups[e.state]) groups[e.state].push(e); }
+  const stroke = (list, col, w, dash) => { if (!list.length) return; ctx.beginPath(); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.setLineDash(dash || []); list.forEach(pathEnt); ctx.stroke(); ctx.setLineDash([]); };
+  stroke(groups.dash, '#c27a00', 1.4, [5, 3]);
+  stroke(groups.cross, '#c2185b', 1, [2, 2]);
+  stroke(groups.cut, '#006d8f', 2);
+  stroke(groups.hot, '#d62d20', 3);
+  if (S.crop){
+    const c = S.crop, q = [[c.x0,c.y0],[c.x1,c.y0],[c.x1,c.y1],[c.x0,c.y1]].map(p => p2s(p[0], p[1]));
+    ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H);
+    ctx.moveTo(q[0][0], q[0][1]); q.slice(1).forEach(p => ctx.lineTo(p[0], p[1])); ctx.closePath();
+    ctx.fillStyle = 'rgba(20,30,40,.38)'; ctx.fill('evenodd'); ctx.restore();
+    ctx.beginPath(); q.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.closePath();
+    ctx.strokeStyle = '#e8a100'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+  }
+  if (S.model){ ctx.strokeStyle = '#c2185b'; ctx.lineWidth = 1.5;
+    for (const p of S.model.pierce){ const s = p2s(p.x, p.y); ctx.beginPath(); ctx.arc(s[0], s[1], 5, 0, TAU); ctx.moveTo(s[0]-8, s[1]); ctx.lineTo(s[0]+8, s[1]); ctx.moveTo(s[0], s[1]-8); ctx.lineTo(s[0], s[1]+8); ctx.stroke(); } }
+  if (S.autoDims){ // kóty použité pro automatické měřítko
+    ctx.strokeStyle = '#a21caf'; ctx.fillStyle = '#a21caf'; ctx.lineWidth = 2; ctx.font = '12px sans-serif';
+    for (const d of S.autoDims){ const a = p2s(d.p0[0], d.p0[1]), b = p2s(d.p1[0], d.p1[1]);
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      ctx.beginPath(); ctx.arc(a[0], a[1], 3, 0, TAU); ctx.arc(b[0], b[1], 3, 0, TAU); ctx.fill();
+      ctx.fillText(String(d.val).replace('.', ','), (a[0]+b[0])/2 + 6, (a[1]+b[1])/2 - 6); }
+  }
+  if (S.mode === 'measure' || S.mpts.length){
+    const pts = S.mpts.slice(); if (S.snapHit && pts.length < 2) pts.push(S.snapHit);
+    ctx.strokeStyle = '#a21caf'; ctx.fillStyle = '#a21caf'; ctx.lineWidth = 1.5;
+    if (pts.length === 2){ const a = p2s(pts[0][0], pts[0][1]), b = p2s(pts[1][0], pts[1][1]); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    pts.forEach((p, i) => { const s = p2s(p[0], p[1]); ctx.beginPath(); ctx.arc(s[0], s[1], i < S.mpts.length ? 4 : 6, 0, TAU); i < S.mpts.length ? ctx.fill() : ctx.stroke(); });
+  }
+  if (S.cal && S.cal.type === 'circ'){ ctx.strokeStyle = '#a21caf'; ctx.lineWidth = 3; ctx.beginPath(); pathEnt(S.cal.ent); ctx.stroke(); }
+  const d = S.drag;
+  if (d && (d.type === 'rect' || d.type === 'erect')){
+    const x = Math.min(d.x0, d.x1), y = Math.min(d.y0, d.y1), w = Math.abs(d.x1-d.x0), h = Math.abs(d.y1-d.y0);
+    ctx.fillStyle = d.type === 'rect' ? 'rgba(232,161,0,.18)' : 'rgba(214,45,32,.15)'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = d.type === 'rect' ? '#e8a100' : '#d62d20'; ctx.lineWidth = 1.5; ctx.strokeRect(x, y, w, h);
+  }
+}
+$('rngUnder').addEventListener('input', draw);
+window.addEventListener('resize', draw);
+
+/* ---------- hit-test a přichytávání ---------- */
+function distSeg(px, py, x1, y1, x2, y2){
+  const dx = x2-x1, dy = y2-y1, l2 = dx*dx+dy*dy; let t = l2 ? ((px-x1)*dx+(py-y1)*dy)/l2 : 0; t = Math.max(0, Math.min(1, t));
+  return hyp(px-x1-t*dx, py-y1-t*dy);
+}
+function distEnt(e, x, y){
+  if (e.t === 'L') return distSeg(x, y, e.x1, e.y1, e.x2, e.y2);
+  const d = hyp(x-e.cx, y-e.cy);
+  if (e.t === 'C') return Math.abs(d - e.r);
+  if (norm2pi(Math.atan2(y-e.cy, x-e.cx) - e.sa) <= e.sw) return Math.abs(d - e.r);
+  return Math.min(hyp(x-e.cx-e.r*Math.cos(e.sa), y-e.cy-e.r*Math.sin(e.sa)), hyp(x-e.cx-e.r*Math.cos(e.sa+e.sw), y-e.cy-e.r*Math.sin(e.sa+e.sw)));
+}
+function hitEnt(sx, sy, onlyRound){
+  const [x, y] = s2p(sx, sy), tol = 8/pxPerUnit(); let best = null, bd = tol;
+  for (const e of S.ents){ if (e.del || (onlyRound && e.t === 'L')) continue; const b = e.bb; if (x < b[0]-tol || x > b[2]+tol || y < b[1]-tol || y > b[3]+tol) continue;
+    const d = distEnt(e, x, y); if (d < bd){ bd = d; best = e; } }
+  return best;
+}
+function snapAt(sx, sy){
+  const [x, y] = s2p(sx, sy), tol = 12/pxPerUnit(); let best = null, bd = tol;
+  for (const p of S.snap){ const d = hyp(p[0]-x, p[1]-y); if (d < bd){ bd = d; best = p; } }
+  return best;
+}
+
+/* ---------- mazání / výřez ---------- */
+function deleteEnts(list){ const l = list.filter(e => !e.del); if (!l.length) return; l.forEach(e => e.del = true); S.undo.push(l); rebuild(); }
+function undo(){ const l = S.undo.pop(); if (!l) return; l.forEach(e => e.del = false); rebuild(); }
+function setCrop(c){ S.crop = c; if (S.kind === 'img') runRaster(); else rebuild(); }
+$('btnUndo').onclick = undo;
+$('btnClrCrop').onclick = () => setCrop(null);
+$('btnRestore').onclick = () => { S.ents.forEach(e => e.del = false); S.undo = []; setCrop(null); };
+
+/* ---------- myš ---------- */
+function mpos(ev){ const r = cv.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; }
+cv.addEventListener('contextmenu', ev => ev.preventDefault());
+cv.addEventListener('pointerdown', ev => {
+  if (!S.page) return; cv.setPointerCapture(ev.pointerId);
+  const [sx, sy] = mpos(ev);
+  if (ev.button === 1 || ev.button === 2 || S.mode === 'pan' || S.spaceDown){ S.drag = {type:'pan', x0:sx, y0:sy, px:S.panX, py:S.panY}; return; }
+  if (S.mode === 'select') S.drag = {type:'rect', x0:sx, y0:sy, x1:sx, y1:sy};
+  else if (S.mode === 'erase') S.drag = {type:'erect', x0:sx, y0:sy, x1:sx, y1:sy};
+  else S.drag = {type:'click', x0:sx, y0:sy};
+});
+cv.addEventListener('pointermove', ev => {
+  const [sx, sy] = mpos(ev), d = S.drag;
+  if (d){
+    if (d.type === 'pan'){ S.panX = d.px + sx - d.x0; S.panY = d.py + sy - d.y0; draw(); }
+    else if (d.type === 'rect' || d.type === 'erect'){ d.x1 = sx; d.y1 = sy; draw(); }
+    return;
+  }
+  if (!S.page) return;
+  if (S.mode === 'erase' || S.mode === 'circle'){ const h = hitEnt(sx, sy, S.mode === 'circle'); if (h !== S.hover){ S.hover = h; draw(); } }
+  else if (S.mode === 'measure'){ S.snapHit = snapAt(sx, sy); draw(); }
+});
+cv.addEventListener('pointerup', ev => {
+  const d = S.drag; S.drag = null; if (!d) return;
+  const [sx, sy] = mpos(ev), moved = hyp(sx-d.x0, sy-d.y0) > 5;
+  if (d.type === 'rect'){
+    if (moved){ const a = s2p(d.x0, d.y0), b = s2p(sx, sy);
+      const c = {x0:Math.max(0, Math.min(a[0],b[0])), y0:Math.max(0, Math.min(a[1],b[1])), x1:Math.min(S.vw, Math.max(a[0],b[0])), y1:Math.min(S.vh, Math.max(a[1],b[1]))};
+      setMode('pan'); setCrop(c); fitView(c.x0, c.y0, c.x1, c.y1); }
+    else draw();
+  } else if (d.type === 'erect'){
+    if (moved){ const a = s2p(d.x0, d.y0), b = s2p(sx, sy), x0 = Math.min(a[0],b[0]), x1 = Math.max(a[0],b[0]), y0 = Math.min(a[1],b[1]), y1 = Math.max(a[1],b[1]);
+      deleteEnts(S.ents.filter(e => !e.del && e.bb[0] >= x0 && e.bb[2] <= x1 && e.bb[1] >= y0 && e.bb[3] <= y1)); }
+    else { const h = hitEnt(sx, sy); if (h){ S.hover = null; deleteEnts([h]); } }
+  } else if (d.type === 'click' && !moved){
+    if (S.mode === 'measure'){
+      const p = snapAt(sx, sy) || s2p(sx, sy);
+      if (S.mpts.length >= 2) S.mpts = [];
+      S.mpts.push(p);
+      if (S.mpts.length === 2) showMeasure(); else $('mpanel').classList.remove('on');
+      draw();
+    } else if (S.mode === 'circle'){
+      const h = hitEnt(sx, sy, true);
+      if (h) showCircle(h); else setStatus('Tady není kružnice ani oblouk. Klikněte přímo na čáru kruhu.', 'bad');
+    }
+  } else draw();
+});
+cv.addEventListener('wheel', ev => { ev.preventDefault(); const [sx, sy] = mpos(ev); zoomAt(sx, sy, Math.exp(-ev.deltaY*0.0015)); }, {passive:false});
+
+/* ---------- ruční kalibrace ---------- */
+function showMeasure(){
+  const [a, b] = S.mpts, k = S.mmPerPt, dpt = hyp(b[0]-a[0], b[1]-a[1]);
+  S.cal = {type:'dist', dpt};
+  $('mText').innerHTML = 'Vzdálenost: <b>' + fmt(dpt*k) + ' mm</b> &nbsp; Δx ' + fmt(Math.abs(b[0]-a[0])*k) + ' &nbsp; Δy ' + fmt(Math.abs(b[1]-a[1])*k);
+  $('mKindRow').classList.add('hidden'); $('mRealLbl').textContent = 'Skutečná hodnota (mm)';
+  $('mReal').value = ''; $('mpanel').classList.add('on'); $('mReal').focus();
+}
+function showCircle(ent){
+  S.mpts = []; S.hover = null;
+  S.cal = {type:'circ', r:ent.r, ent};
+  $('mText').innerHTML = (ent.t === 'C' ? 'Kružnice' : 'Oblouk') + ': ⌀ <b>' + fmt(2*ent.r*S.mmPerPt) + ' mm</b> &nbsp; R ' + fmt(ent.r*S.mmPerPt) + ' mm (při současném měřítku)' + (S.kind === 'img' ? '<br>Přesnost kalibrace z tohoto kruhu ≈ ±' + fmt(100/(2*ent.r), 1) + ' % (1 px)' + (ent.r < 60 ? ' – malý otvor, lepší je delší kóta' : '') : '');
+  $('mKindRow').classList.remove('hidden'); $('mKind').value = ent.t === 'C' ? 'd' : 'r'; $('mRealLbl').textContent = 'Skutečná hodnota (mm)';
+  $('mReal').value = ''; $('mpanel').classList.add('on'); $('mReal').focus(); draw();
+}
+$('mApply').onclick = () => {
+  const v = parseFloat($('mReal').value); if (!(v > 0) || !S.cal) return;
+  if (S.cal.type === 'dist' && S.cal.dpt > 0) S.mmPerPt = v/S.cal.dpt;
+  else if (S.cal.type === 'circ') S.mmPerPt = ($('mKind').value === 'd' ? v/2 : v)/S.cal.r;
+  else return;
+  S.calSource = 'ručně'; S.autoDims = null; $('autoBox').classList.add('hidden');
+  S.mpts = []; S.cal = null; $('mpanel').classList.remove('on'); rebuild();
+};
+$('mClose').onclick = () => { S.mpts = []; S.cal = null; $('mpanel').classList.remove('on'); draw(); };
+$('mReal').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('mApply').click(); });
+
+/* ---------- automatická kalibrace z kót ---------- */
+function applyAutoResult(a, autoApply){
+  S.auto = a;
+  const good = a.n >= 2 && a.spread <= 0.012;
+  const txt = '1 ' + unitName() + ' = ' + fmt(a.scale, 4) + ' mm · ' + a.n + ' z ' + a.total + ' kót se shoduje (' + a.used.map(u => String(u.val).replace('.', ',')).join('; ') + ')';
+  const box = $('autoBox');
+  if (good && autoApply){
+    S.mmPerPt = a.scale; S.calSource = 'z kót'; S.autoDims = a.used;
+    box.classList.remove('hidden'); box.textContent = 'Měřítko nastaveno automaticky: ' + txt + '. Použité kóty jsou ve výkrese fialově.';
+    $('autoNote').textContent = '';
+  } else {
+    S.autoDims = a.used;
+    box.classList.remove('hidden'); box.innerHTML = (good ? 'Nalezeno: ' : 'Nejisté (málo shodných kót): ') + txt + ' ';
+    const b = document.createElement('button'); b.className = 'btn sm'; b.textContent = 'Použít'; b.onclick = () => { S.mmPerPt = a.scale; S.calSource = 'z kót'; rebuild(); box.textContent = 'Měřítko nastaveno: ' + txt + '.'; };
+    box.appendChild(b);
+  }
+  rebuild();
+}
+async function autoCalibrate(){
+  if (S.busy || !S.page) return;
+  if (S.kind === 'pdf'){
+    if (S.auto) applyAutoResult(S.auto, true); else { $('autoNote').textContent = 'V tomto PDF nejsou kóty (šipky + čísla) k použití'; }
+    return;
+  }
+  S.busy = true; $('btnAuto').disabled = true;
+  try {
+    setStatus('Načítám OCR (poprvé stahuje jazyková data, může to trvat)…');
+    if (!(await initTesseract())) throw new Error('knihovna OCR (tesseract.js) se nenačetla – chybí internet? Použijte ruční kalibraci.');
+    const worker = await Tesseract.createWorker('eng', 1, {logger: m => { if (m && m.status && typeof m.progress === 'number') setStatus('OCR: ' + m.status + ' ' + Math.round(m.progress*100) + ' %'); }});
+    let words = [];
+    try {
+      await worker.setParameters({tessedit_char_whitelist:'0123456789,.', tessedit_pageseg_mode:'11'});
+      const H = S.vh;
+      const upright = await ocrWords(worker, S.src);
+      upright.forEach(w => words.push({text:w.text, x0:w.x0, y0:w.y0, x1:w.x1, y1:w.y1, vertical:false}));
+      setStatus('OCR: svislé kóty…');
+      const rot = await ocrWords(worker, rotateCW(S.src));
+      rot.forEach(w => words.push({text:w.text, x0:w.y0, x1:w.y1, y0:H - w.x1, y1:H - w.x0, vertical:true}));
+    } finally { try { await worker.terminate(); } catch(e){} }
+    setStatus('Hledám rozměrové čáry…');
+    await new Promise(r => setTimeout(r, 20));
+    const full = S.src.getContext('2d').getImageData(0, 0, S.vw, S.vh), gray = toGray(full.data, S.vw*S.vh);
+    const R = rasterVectorize(gray, S.vw, S.vh, rasterOpts(0, 0));
+    const rcand = findRasterDims(R.ents, words, S.vh, R.thickness), cs = consensusScale(rcand, 0.012);
+    const rnums = []; for (const w of words){ const pf = parseDimFull(w.text); if (pf) rnums.push({v:pf.v + pf.off, x0:w.x0, x1:w.x1, y0:S.vh - w.y1, y1:S.vh - w.y0}); }
+    S.dimData = {dims:rcand, nums:rnums, dia:[], raster:true, thick:R.thickness};
+    if (!cs){ $('autoBox').classList.remove('hidden'); $('autoBox').textContent = 'Kóty se nepodařilo spárovat s rozměrovými čarami (nalezeno ' + words.length + ' čísel). Použijte ruční kalibraci.'; setStatus('Automatická kalibrace selhala', 'bad'); }
+    else applyAutoResult(cs, true);
+  } catch(err){
+    console.error(err); setStatus('Automatická kalibrace: ' + err.message, 'bad');
+    $('autoBox').classList.remove('hidden'); $('autoBox').textContent = 'Automatická kalibrace selhala: ' + err.message;
+  } finally { S.busy = false; $('btnAuto').disabled = false; }
+}
+function flattenWords(data){
+  if (data.words && data.words.length) return data.words;
+  const out = []; (data.blocks || []).forEach(b => (b.paragraphs || []).forEach(p => (p.lines || []).forEach(l => (l.words || []).forEach(w => out.push(w)))));
+  return out;
+}
+async function ocrWords(worker, canvas){
+  const r = await worker.recognize(canvas);
+  return flattenWords(r.data).filter(w => w.bbox && (w.confidence === undefined || w.confidence >= 60))
+    .map(w => ({text:String(w.text).trim(), x0:w.bbox.x0, y0:w.bbox.y0, x1:w.bbox.x1, y1:w.bbox.y1}));
+}
+function rotateCW(src){
+  const c = document.createElement('canvas'); c.width = src.height; c.height = src.width;
+  const x = c.getContext('2d'); x.translate(c.width, 0); x.rotate(Math.PI/2); x.drawImage(src, 0, 0); return c;
+}
+$('btnAuto').onclick = autoCalibrate;
+
+/* ---------- režimy ---------- */
+function setMode(m){
+  S.mode = m; S.hover = null; S.snapHit = null;
+  document.querySelectorAll('.modes button').forEach(b => b.classList.toggle('on', b.dataset.mode === m));
+  $('modeHint').textContent = MODE_HINT[m];
+  cv.style.cursor = m === 'pan' ? 'grab' : 'crosshair';
+  if (m !== 'measure' && m !== 'circle'){ S.mpts = []; S.cal = null; $('mpanel').classList.remove('on'); }
+  draw();
+}
+document.querySelectorAll('.modes button').forEach(b => b.onclick = () => setMode(b.dataset.mode));
+window.addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT') return;
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z'){ ev.preventDefault(); undo(); }
+  else if (ev.key === 'Escape'){ S.mpts = []; S.cal = null; $('mpanel').classList.remove('on'); setMode('pan'); }
+  else if (ev.code === 'Space'){ S.spaceDown = true; }
+});
+window.addEventListener('keyup', ev => { if (ev.code === 'Space') S.spaceDown = false; });
+
+/* ---------- soubor / export ---------- */
+const drop = $('drop'), fileIn = $('file');
+drop.onclick = () => fileIn.click();
+fileIn.onchange = () => { if (fileIn.files[0]) handleFile(fileIn.files[0]); fileIn.value = ''; };
+['dragenter','dragover'].forEach(t => window.addEventListener(t, ev => { ev.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(t => window.addEventListener(t, ev => { ev.preventDefault(); drop.classList.remove('over'); }));
+window.addEventListener('drop', ev => { if (ev.dataTransfer && ev.dataTransfer.files[0]) handleFile(ev.dataTransfer.files[0]); });
+
+function exportDXF(){
+  if (!S.model) return;
+  const o = getOptions(), text = makeDXF(S.model, o);
+  const blob = new Blob([text], {type:'application/dxf'}), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (S.fileName || 'vykres').replace(/\.[^.]+$/, '') + (S.doc && S.doc.numPages > 1 ? '_s' + S.pageNum : '') + (S.crop ? '_dilec' : '') + (S.tech === 'punch' ? '_TruPunch' : '_TruFiber') + '.dxf';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$('btnExport').onclick = exportDXF; $('btnExportTop').onclick = exportDXF;
+setMode('pan'); setKind('pdf'); $('btnAuto').disabled = true; setTech('punch');
+</script>
+</body>
+</html>
